@@ -22,8 +22,12 @@ type ObservabilityStackInstanceConfig struct {
 	log                                   *logr.Logger
 	grafanaHelmValuesDocument             string
 	kubePrometheusStackHelmValuesDocument string
+	mimirHelmValuesDocument               string
 	lokiHelmValuesDocument                string
-	promtailHelmValuesDocument            string
+	tempoHelmValuesDocument               string
+	otelAgentHelmValuesDocument           string
+	otelGatewayHelmValuesDocument         string
+	otelBrowserRelayHelmValuesDocument    string
 }
 
 // getObservabilityStackInstanceOperations returns the operations
@@ -53,6 +57,51 @@ func (c *ObservabilityStackInstanceConfig) getObservabilityStackInstanceOperatio
 			Name:   "metrics",
 			Create: c.createMetricsInstance,
 			Delete: c.deleteMetricsInstance,
+		})
+	}
+
+	if *c.observabilityStackInstance.MetricsStorageEnabled {
+		// append metrics storage operations
+		operations.AppendOperation(util.Operation{
+			Name:   "metrics storage",
+			Create: c.createMetricsStorageInstance,
+			Delete: c.deleteMetricsStorageInstance,
+		})
+	}
+
+	if *c.observabilityStackInstance.TracingEnabled {
+		// append tracing operations
+		operations.AppendOperation(util.Operation{
+			Name:   "tracing",
+			Create: c.createTracingInstance,
+			Delete: c.deleteTracingInstance,
+		})
+	}
+
+	if *c.observabilityStackInstance.InstrumentationAgentEnabled {
+		// append instrumentation agent operations
+		operations.AppendOperation(util.Operation{
+			Name:   "instrumentation agent",
+			Create: c.createInstrumentationAgentInstance,
+			Delete: c.deleteInstrumentationAgentInstance,
+		})
+	}
+
+	if *c.observabilityStackInstance.InstrumentationGatewayEnabled {
+		// append instrumentation gateway operations
+		operations.AppendOperation(util.Operation{
+			Name:   "instrumentation gateway",
+			Create: c.createInstrumentationGatewayInstance,
+			Delete: c.deleteInstrumentationGatewayInstance,
+		})
+	}
+
+	if *c.observabilityStackInstance.InstrumentationBrowserRelayEnabled {
+		// append instrumentation browser relay operations
+		operations.AppendOperation(util.Operation{
+			Name:   "instrumentation browser relay",
+			Create: c.createInstrumentationBrowserRelayInstance,
+			Delete: c.deleteInstrumentationBrowserRelayInstance,
 		})
 	}
 
@@ -148,7 +197,6 @@ func (c *ObservabilityStackInstanceConfig) createLoggingInstance() error {
 			KubernetesRuntimeInstanceID: c.observabilityStackInstance.KubernetesRuntimeInstanceID,
 			LoggingDefinitionID:         c.observabilityStackDefinition.LoggingDefinitionID,
 			LokiHelmValuesDocument:      &c.lokiHelmValuesDocument,
-			PromtailHelmValuesDocument:  &c.promtailHelmValuesDocument,
 		})
 	if err != nil {
 		return fmt.Errorf("failed to create logging instance: %w", err)
@@ -169,6 +217,196 @@ func (c *ObservabilityStackInstanceConfig) deleteLoggingInstance() error {
 		*c.observabilityStackInstance.LoggingInstanceID,
 	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
 		return fmt.Errorf("failed to delete logging instance: %w", err)
+	}
+
+	return nil
+}
+
+// createMetricsStorageInstance creates a metrics storage instance
+func (c *ObservabilityStackInstanceConfig) createMetricsStorageInstance() error {
+	// create metrics storage instance
+	metricsStorageInstance, err := client.CreateMetricsStorageInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		&v0.MetricsStorageInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(MetricsStorageName(*c.observabilityStackInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: c.observabilityStackInstance.KubernetesRuntimeInstanceID,
+			MetricsStorageDefinitionID:  c.observabilityStackDefinition.MetricsStorageDefinitionID,
+			MimirHelmValuesDocument:     &c.mimirHelmValuesDocument,
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create metrics storage instance: %w", err)
+	}
+
+	// update metrics storage instance id
+	c.observabilityStackInstance.MetricsStorageInstanceID = metricsStorageInstance.ID
+
+	return nil
+}
+
+// deleteMetricsStorageInstance deletes a metrics storage instance
+func (c *ObservabilityStackInstanceConfig) deleteMetricsStorageInstance() error {
+	// delete metrics storage instance
+	if _, err := client.DeleteMetricsStorageInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		*c.observabilityStackInstance.MetricsStorageInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return fmt.Errorf("failed to delete metrics storage instance: %w", err)
+	}
+
+	return nil
+}
+
+// createTracingInstance creates a tracing instance
+func (c *ObservabilityStackInstanceConfig) createTracingInstance() error {
+	// create tracing instance
+	tracingInstance, err := client.CreateTracingInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		&v0.TracingInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(TracingName(*c.observabilityStackInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: c.observabilityStackInstance.KubernetesRuntimeInstanceID,
+			TracingDefinitionID:         c.observabilityStackDefinition.TracingDefinitionID,
+			TempoHelmValuesDocument:     &c.tempoHelmValuesDocument,
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create tracing instance: %w", err)
+	}
+
+	// update tracing instance id
+	c.observabilityStackInstance.TracingInstanceID = tracingInstance.ID
+
+	return nil
+}
+
+// deleteTracingInstance deletes a tracing instance
+func (c *ObservabilityStackInstanceConfig) deleteTracingInstance() error {
+	// delete tracing instance
+	if _, err := client.DeleteTracingInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		*c.observabilityStackInstance.TracingInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return fmt.Errorf("failed to delete tracing instance: %w", err)
+	}
+
+	return nil
+}
+
+// createInstrumentationAgentInstance creates an instrumentation agent instance
+func (c *ObservabilityStackInstanceConfig) createInstrumentationAgentInstance() error {
+	// create instrumentation agent instance
+	instrumentationAgentInstance, err := client.CreateInstrumentationAgentInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		&v0.InstrumentationAgentInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(InstrumentationAgentName(*c.observabilityStackInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID:      c.observabilityStackInstance.KubernetesRuntimeInstanceID,
+			InstrumentationAgentDefinitionID: c.observabilityStackDefinition.InstrumentationAgentDefinitionID,
+			OtelAgentHelmValuesDocument:      &c.otelAgentHelmValuesDocument,
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create instrumentation agent instance: %w", err)
+	}
+
+	// update instrumentation agent instance id
+	c.observabilityStackInstance.InstrumentationAgentInstanceID = instrumentationAgentInstance.ID
+
+	return nil
+}
+
+// deleteInstrumentationAgentInstance deletes an instrumentation agent instance
+func (c *ObservabilityStackInstanceConfig) deleteInstrumentationAgentInstance() error {
+	// delete instrumentation agent instance
+	if _, err := client.DeleteInstrumentationAgentInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		*c.observabilityStackInstance.InstrumentationAgentInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return fmt.Errorf("failed to delete instrumentation agent instance: %w", err)
+	}
+
+	return nil
+}
+
+// createInstrumentationGatewayInstance creates an instrumentation gateway instance
+func (c *ObservabilityStackInstanceConfig) createInstrumentationGatewayInstance() error {
+	// create instrumentation gateway instance
+	instrumentationGatewayInstance, err := client.CreateInstrumentationGatewayInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		&v0.InstrumentationGatewayInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(InstrumentationGatewayName(*c.observabilityStackInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID:        c.observabilityStackInstance.KubernetesRuntimeInstanceID,
+			InstrumentationGatewayDefinitionID: c.observabilityStackDefinition.InstrumentationGatewayDefinitionID,
+			OtelGatewayHelmValuesDocument:      &c.otelGatewayHelmValuesDocument,
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create instrumentation gateway instance: %w", err)
+	}
+
+	// update instrumentation gateway instance id
+	c.observabilityStackInstance.InstrumentationGatewayInstanceID = instrumentationGatewayInstance.ID
+
+	return nil
+}
+
+// deleteInstrumentationGatewayInstance deletes an instrumentation gateway instance
+func (c *ObservabilityStackInstanceConfig) deleteInstrumentationGatewayInstance() error {
+	// delete instrumentation gateway instance
+	if _, err := client.DeleteInstrumentationGatewayInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		*c.observabilityStackInstance.InstrumentationGatewayInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return fmt.Errorf("failed to delete instrumentation gateway instance: %w", err)
+	}
+
+	return nil
+}
+
+// createInstrumentationBrowserRelayInstance creates an instrumentation browser relay instance
+func (c *ObservabilityStackInstanceConfig) createInstrumentationBrowserRelayInstance() error {
+	// create instrumentation browser relay instance
+	instrumentationBrowserRelayInstance, err := client.CreateInstrumentationBrowserRelayInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		&v0.InstrumentationBrowserRelayInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(InstrumentationBrowserRelayName(*c.observabilityStackInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID:             c.observabilityStackInstance.KubernetesRuntimeInstanceID,
+			InstrumentationBrowserRelayDefinitionID: c.observabilityStackDefinition.InstrumentationBrowserRelayDefinitionID,
+			OtelBrowserRelayHelmValuesDocument:      &c.otelBrowserRelayHelmValuesDocument,
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create instrumentation browser relay instance: %w", err)
+	}
+
+	// update instrumentation browser relay instance id
+	c.observabilityStackInstance.InstrumentationBrowserRelayInstanceID = instrumentationBrowserRelayInstance.ID
+
+	return nil
+}
+
+// deleteInstrumentationBrowserRelayInstance deletes an instrumentation browser relay instance
+func (c *ObservabilityStackInstanceConfig) deleteInstrumentationBrowserRelayInstance() error {
+	// delete instrumentation browser relay instance
+	if _, err := client.DeleteInstrumentationBrowserRelayInstance(
+		c.r.APIClient,
+		c.r.APIServer,
+		*c.observabilityStackInstance.InstrumentationBrowserRelayInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return fmt.Errorf("failed to delete instrumentation browser relay instance: %w", err)
 	}
 
 	return nil
@@ -211,6 +449,15 @@ func (c *ObservabilityStackInstanceConfig) setMergedObservabilityStackInstanceVa
 		return fmt.Errorf("failed to merge kube-prometheus-stack helm values: %w", err)
 	}
 
+	// merge mimir values
+	c.mimirHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
+		c.observabilityStackInstance.MimirHelmValuesDocument,
+		c.observabilityStackDefinition.MimirHelmValuesDocument,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to merge mimir helm values: %w", err)
+	}
+
 	// merge loki values
 	c.lokiHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
 		c.observabilityStackInstance.LokiHelmValuesDocument,
@@ -220,13 +467,40 @@ func (c *ObservabilityStackInstanceConfig) setMergedObservabilityStackInstanceVa
 		return fmt.Errorf("failed to merge loki helm values: %w", err)
 	}
 
-	// merge promtail values
-	c.promtailHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
-		c.observabilityStackInstance.PromtailHelmValuesDocument,
-		c.observabilityStackDefinition.PromtailHelmValuesDocument,
+	// merge tempo values
+	c.tempoHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
+		c.observabilityStackInstance.TempoHelmValuesDocument,
+		c.observabilityStackDefinition.TempoHelmValuesDocument,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to merge promtail helm values: %w", err)
+		return fmt.Errorf("failed to merge tempo helm values: %w", err)
+	}
+
+	// merge otel agent values
+	c.otelAgentHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
+		c.observabilityStackInstance.OtelAgentHelmValuesDocument,
+		c.observabilityStackDefinition.OtelAgentHelmValuesDocument,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to merge otel agent helm values: %w", err)
+	}
+
+	// merge otel gateway values
+	c.otelGatewayHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
+		c.observabilityStackInstance.OtelGatewayHelmValuesDocument,
+		c.observabilityStackDefinition.OtelGatewayHelmValuesDocument,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to merge otel gateway helm values: %w", err)
+	}
+
+	// merge otel browser relay values
+	c.otelBrowserRelayHelmValuesDocument, err = helmworkload.MergeHelmValuesPtrs(
+		c.observabilityStackInstance.OtelBrowserRelayHelmValuesDocument,
+		c.observabilityStackDefinition.OtelBrowserRelayHelmValuesDocument,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to merge otel browser relay helm values: %w", err)
 	}
 
 	return nil

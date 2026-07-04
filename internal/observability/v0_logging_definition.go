@@ -53,9 +53,6 @@ extraObjects:
         url: http://loki-headless.{{ $.Release.Namespace }}:3100
 `
 
-// promtailValues contains the default values for the promtail helm chart.
-const promtailValues = ``
-
 // v0LoggingDefinitionCreated performs reconciliation when a v0 LoggingDefinition
 // has been created.
 func v0LoggingDefinitionCreated(
@@ -76,15 +73,6 @@ func v0LoggingDefinitionCreated(
 	c.lokiHelmWorkloadDefinitionValues, err = helmworkload.MergeHelmValuesString(
 		lokiValues,
 		util.DerefString(loggingDefinition.LokiHelmValuesDocument),
-	)
-	if err != nil {
-		return 0, fmt.Errorf("failed to merge loki helm values: %w", err)
-	}
-
-	// merge promtail helm values
-	c.promtailHelmWorkloadDefinitionValues, err = helmworkload.MergeHelmValuesString(
-		promtailValues,
-		util.DerefString(loggingDefinition.PromtailHelmValuesDocument),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to merge loki helm values: %w", err)

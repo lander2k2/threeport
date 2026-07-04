@@ -34,7 +34,7 @@ func v0LoggingInstanceCreated(
 		return 0, fmt.Errorf("logging definition is not reconciled")
 	}
 
-	// generate shared namespace name for loki and promtail
+	// generate namespace name for loki
 	loggingNamespace := fmt.Sprintf("%s-logging-%s", *loggingInstance.Name, util.RandomAlphaString(10))
 
 	// create logging instance config
@@ -50,15 +50,6 @@ func v0LoggingInstanceCreated(
 	c.lokiHelmWorkloadInstanceValues, err = helmworkload.MergeHelmValuesPtrs(
 		loggingDefinition.LokiHelmValuesDocument,
 		loggingInstance.LokiHelmValuesDocument,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("failed to merge loki helm values: %w", err)
-	}
-
-	// merge promtail helm values
-	c.promtailHelmWorkloadInstanceValues, err = helmworkload.MergeHelmValuesPtrs(
-		loggingDefinition.PromtailHelmValuesDocument,
-		loggingInstance.PromtailHelmValuesDocument,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to merge loki helm values: %w", err)

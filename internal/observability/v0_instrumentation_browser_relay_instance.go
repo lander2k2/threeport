@@ -3,9 +3,17 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
 
 // v0InstrumentationBrowserRelayInstanceCreated performs reconciliation when a v0 InstrumentationBrowserRelayInstance
@@ -15,6 +23,58 @@ func v0InstrumentationBrowserRelayInstanceCreated(
 	instrumentationBrowserRelayInstance *v0.InstrumentationBrowserRelayInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// get instrumentation browser relay definition
+	instrumentationBrowserRelayDefinition, err := client.GetInstrumentationBrowserRelayDefinitionByID(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationBrowserRelayInstance.InstrumentationBrowserRelayDefinitionID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get instrumentation browser relay definition: %w", err)
+	}
+	if !*instrumentationBrowserRelayDefinition.Reconciled {
+		return 0, fmt.Errorf("instrumentation browser relay definition is not reconciled")
+	}
+
+	// merge otel browser relay helm values if they are provided
+	otelBrowserRelayHelmWorkloadInstanceValues, err := helmworkload.MergeHelmValuesPtrs(
+		instrumentationBrowserRelayDefinition.OtelBrowserRelayHelmValuesDocument,
+		instrumentationBrowserRelayInstance.OtelBrowserRelayHelmValuesDocument,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge otel browser relay helm values: %w", err)
+	}
+
+	// create otel browser relay helm workload instance
+	otelBrowserRelayHelmWorkloadInstance, err := client.CreateHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(OtelBrowserRelayHelmChartName(*instrumentationBrowserRelayInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: instrumentationBrowserRelayInstance.KubernetesRuntimeInstanceID,
+			HelmWorkloadDefinitionID:    instrumentationBrowserRelayDefinition.OtelBrowserRelayHelmWorkloadDefinitionID,
+			ValuesDocument:              &otelBrowserRelayHelmWorkloadInstanceValues,
+		},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create otel browser relay helm workload instance: %w", err)
+	}
+
+	// update instrumentation browser relay instance with otel browser relay helm workload instance id
+	instrumentationBrowserRelayInstance.OtelBrowserRelayHelmWorkloadInstanceID = otelBrowserRelayHelmWorkloadInstance.ID
+
+	// update instrumentation browser relay instance
+	instrumentationBrowserRelayInstance.Reconciled = util.Ptr(true)
+	if _, err = client.UpdateInstrumentationBrowserRelayInstance(
+		r.APIClient,
+		r.APIServer,
+		instrumentationBrowserRelayInstance,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update instrumentation browser relay instance: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +95,14 @@ func v0InstrumentationBrowserRelayInstanceDeleted(
 	instrumentationBrowserRelayInstance *v0.InstrumentationBrowserRelayInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete otel browser relay helm workload instance
+	if _, err := client.DeleteHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationBrowserRelayInstance.OtelBrowserRelayHelmWorkloadInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete otel browser relay helm workload instance: %w", err)
+	}
+
 	return 0, nil
 }

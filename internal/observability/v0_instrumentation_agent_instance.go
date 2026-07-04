@@ -3,9 +3,17 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
 
 // v0InstrumentationAgentInstanceCreated performs reconciliation when a v0 InstrumentationAgentInstance
@@ -15,6 +23,58 @@ func v0InstrumentationAgentInstanceCreated(
 	instrumentationAgentInstance *v0.InstrumentationAgentInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// get instrumentation agent definition
+	instrumentationAgentDefinition, err := client.GetInstrumentationAgentDefinitionByID(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationAgentInstance.InstrumentationAgentDefinitionID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get instrumentation agent definition: %w", err)
+	}
+	if !*instrumentationAgentDefinition.Reconciled {
+		return 0, fmt.Errorf("instrumentation agent definition is not reconciled")
+	}
+
+	// merge otel agent helm values if they are provided
+	otelAgentHelmWorkloadInstanceValues, err := helmworkload.MergeHelmValuesPtrs(
+		instrumentationAgentDefinition.OtelAgentHelmValuesDocument,
+		instrumentationAgentInstance.OtelAgentHelmValuesDocument,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge otel agent helm values: %w", err)
+	}
+
+	// create otel agent helm workload instance
+	otelAgentHelmWorkloadInstance, err := client.CreateHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(OtelAgentHelmChartName(*instrumentationAgentInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: instrumentationAgentInstance.KubernetesRuntimeInstanceID,
+			HelmWorkloadDefinitionID:    instrumentationAgentDefinition.OtelAgentHelmWorkloadDefinitionID,
+			ValuesDocument:              &otelAgentHelmWorkloadInstanceValues,
+		},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create otel agent helm workload instance: %w", err)
+	}
+
+	// update instrumentation agent instance with otel agent helm workload instance id
+	instrumentationAgentInstance.OtelAgentHelmWorkloadInstanceID = otelAgentHelmWorkloadInstance.ID
+
+	// update instrumentation agent instance
+	instrumentationAgentInstance.Reconciled = util.Ptr(true)
+	if _, err = client.UpdateInstrumentationAgentInstance(
+		r.APIClient,
+		r.APIServer,
+		instrumentationAgentInstance,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update instrumentation agent instance: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +95,14 @@ func v0InstrumentationAgentInstanceDeleted(
 	instrumentationAgentInstance *v0.InstrumentationAgentInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete otel agent helm workload instance
+	if _, err := client.DeleteHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationAgentInstance.OtelAgentHelmWorkloadInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete otel agent helm workload instance: %w", err)
+	}
+
 	return 0, nil
 }

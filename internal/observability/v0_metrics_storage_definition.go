@@ -3,10 +3,21 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
+
+// mimirValues contains the default values for the mimir-distributed helm chart.
+const mimirValues = ``
 
 // v0MetricsStorageDefinitionCreated performs reconciliation when a v0 MetricsStorageDefinition
 // has been created.
@@ -15,6 +26,45 @@ func v0MetricsStorageDefinitionCreated(
 	metricsStorageDefinition *v0.MetricsStorageDefinition,
 	log *logr.Logger,
 ) (int64, error) {
+	// merge mimir helm values if they are provided
+	mimirHelmWorkloadDefinitionValues, err := helmworkload.MergeHelmValuesString(
+		mimirValues,
+		util.DerefString(metricsStorageDefinition.MimirHelmValuesDocument),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge mimir helm values: %w", err)
+	}
+
+	// create mimir helm workload definition
+	mimirHelmWorkloadDefinition, err := client.CreateHelmWorkloadDefinition(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadDefinition{
+			Definition: v0.Definition{
+				Name: util.Ptr(MimirHelmChartName(*metricsStorageDefinition.Name)),
+			},
+			Repo:           util.Ptr(MimirHelmRepo),
+			Chart:          util.Ptr("mimir-distributed"),
+			ChartVersion:   metricsStorageDefinition.MimirHelmChartVersion,
+			ValuesDocument: &mimirHelmWorkloadDefinitionValues,
+		})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create mimir helm workload definition: %w", err)
+	}
+
+	// update metrics storage definition with helm workload definition id
+	metricsStorageDefinition.MimirHelmWorkloadDefinitionID = mimirHelmWorkloadDefinition.ID
+
+	// update metrics storage definition
+	metricsStorageDefinition.Reconciled = util.Ptr(true)
+	if _, err := client.UpdateMetricsStorageDefinition(
+		r.APIClient,
+		r.APIServer,
+		metricsStorageDefinition,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update metrics storage definition: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +85,14 @@ func v0MetricsStorageDefinitionDeleted(
 	metricsStorageDefinition *v0.MetricsStorageDefinition,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete mimir helm workload definition
+	if _, err := client.DeleteHelmWorkloadDefinition(
+		r.APIClient,
+		r.APIServer,
+		*metricsStorageDefinition.MimirHelmWorkloadDefinitionID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete mimir helm workload definition: %w", err)
+	}
+
 	return 0, nil
 }

@@ -3,10 +3,21 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
+
+// tempoValues contains the default values for the tempo helm chart.
+const tempoValues = ``
 
 // v0TracingDefinitionCreated performs reconciliation when a v0 TracingDefinition
 // has been created.
@@ -15,6 +26,45 @@ func v0TracingDefinitionCreated(
 	tracingDefinition *v0.TracingDefinition,
 	log *logr.Logger,
 ) (int64, error) {
+	// merge tempo helm values if they are provided
+	tempoHelmWorkloadDefinitionValues, err := helmworkload.MergeHelmValuesString(
+		tempoValues,
+		util.DerefString(tracingDefinition.TempoHelmValuesDocument),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge tempo helm values: %w", err)
+	}
+
+	// create tempo helm workload definition
+	tempoHelmWorkloadDefinition, err := client.CreateHelmWorkloadDefinition(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadDefinition{
+			Definition: v0.Definition{
+				Name: util.Ptr(TempoHelmChartName(*tracingDefinition.Name)),
+			},
+			Repo:           util.Ptr(TempoHelmRepo),
+			Chart:          util.Ptr("tempo"),
+			ChartVersion:   tracingDefinition.TempoHelmChartVersion,
+			ValuesDocument: &tempoHelmWorkloadDefinitionValues,
+		})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create tempo helm workload definition: %w", err)
+	}
+
+	// update tracing definition with helm workload definition id
+	tracingDefinition.TempoHelmWorkloadDefinitionID = tempoHelmWorkloadDefinition.ID
+
+	// update tracing definition
+	tracingDefinition.Reconciled = util.Ptr(true)
+	if _, err := client.UpdateTracingDefinition(
+		r.APIClient,
+		r.APIServer,
+		tracingDefinition,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update tracing definition: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +85,14 @@ func v0TracingDefinitionDeleted(
 	tracingDefinition *v0.TracingDefinition,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete tempo helm workload definition
+	if _, err := client.DeleteHelmWorkloadDefinition(
+		r.APIClient,
+		r.APIServer,
+		*tracingDefinition.TempoHelmWorkloadDefinitionID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete tempo helm workload definition: %w", err)
+	}
+
 	return 0, nil
 }

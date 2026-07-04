@@ -55,7 +55,7 @@ func v0MetricsDefinitionCreated(
 			Definition: v0.Definition{
 				Name: util.Ptr(KubePrometheusStackChartName(*metricsDefinition.Name)),
 			},
-			Repo:           util.Ptr(PrometheusCommunityHelmRepo),
+			Repo:           util.Ptr(PrometheusHelmRepo),
 			Chart:          util.Ptr("kube-prometheus-stack"),
 			ChartVersion:   metricsDefinition.KubePrometheusStackHelmChartVersion,
 			ValuesDocument: &kubePrometheusStackHelmWorkloadDefinitionValues,

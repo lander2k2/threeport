@@ -3,9 +3,17 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
 
 // v0MetricsStorageInstanceCreated performs reconciliation when a v0 MetricsStorageInstance
@@ -15,6 +23,58 @@ func v0MetricsStorageInstanceCreated(
 	metricsStorageInstance *v0.MetricsStorageInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// get metrics storage definition
+	metricsStorageDefinition, err := client.GetMetricsStorageDefinitionByID(
+		r.APIClient,
+		r.APIServer,
+		*metricsStorageInstance.MetricsStorageDefinitionID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get metrics storage definition: %w", err)
+	}
+	if !*metricsStorageDefinition.Reconciled {
+		return 0, fmt.Errorf("metrics storage definition is not reconciled")
+	}
+
+	// merge mimir helm values if they are provided
+	mimirHelmWorkloadInstanceValues, err := helmworkload.MergeHelmValuesPtrs(
+		metricsStorageDefinition.MimirHelmValuesDocument,
+		metricsStorageInstance.MimirHelmValuesDocument,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge mimir helm values: %w", err)
+	}
+
+	// create mimir helm workload instance
+	mimirHelmWorkloadInstance, err := client.CreateHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(MimirHelmChartName(*metricsStorageInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: metricsStorageInstance.KubernetesRuntimeInstanceID,
+			HelmWorkloadDefinitionID:    metricsStorageDefinition.MimirHelmWorkloadDefinitionID,
+			ValuesDocument:              &mimirHelmWorkloadInstanceValues,
+		},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create mimir helm workload instance: %w", err)
+	}
+
+	// update metrics storage instance with mimir helm workload instance id
+	metricsStorageInstance.MimirHelmWorkloadInstanceID = mimirHelmWorkloadInstance.ID
+
+	// update metrics storage instance
+	metricsStorageInstance.Reconciled = util.Ptr(true)
+	if _, err = client.UpdateMetricsStorageInstance(
+		r.APIClient,
+		r.APIServer,
+		metricsStorageInstance,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update metrics storage instance: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +95,14 @@ func v0MetricsStorageInstanceDeleted(
 	metricsStorageInstance *v0.MetricsStorageInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete mimir helm workload instance
+	if _, err := client.DeleteHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		*metricsStorageInstance.MimirHelmWorkloadInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete mimir helm workload instance: %w", err)
+	}
+
 	return 0, nil
 }

@@ -3,10 +3,25 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
+
+// otelGatewayValues contains the default values for the OTel Collector Gateway,
+// which runs as a Deployment.
+const otelGatewayValues = `
+mode: deployment
+replicaCount: 2
+`
 
 // v0InstrumentationGatewayDefinitionCreated performs reconciliation when a v0 InstrumentationGatewayDefinition
 // has been created.
@@ -15,6 +30,45 @@ func v0InstrumentationGatewayDefinitionCreated(
 	instrumentationGatewayDefinition *v0.InstrumentationGatewayDefinition,
 	log *logr.Logger,
 ) (int64, error) {
+	// merge otel gateway helm values if they are provided
+	otelGatewayHelmWorkloadDefinitionValues, err := helmworkload.MergeHelmValuesString(
+		otelGatewayValues,
+		util.DerefString(instrumentationGatewayDefinition.OtelGatewayHelmValuesDocument),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge otel gateway helm values: %w", err)
+	}
+
+	// create otel gateway helm workload definition
+	otelGatewayHelmWorkloadDefinition, err := client.CreateHelmWorkloadDefinition(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadDefinition{
+			Definition: v0.Definition{
+				Name: util.Ptr(OtelGatewayHelmChartName(*instrumentationGatewayDefinition.Name)),
+			},
+			Repo:           util.Ptr(OtelCollectorHelmRepo),
+			Chart:          util.Ptr("opentelemetry-collector"),
+			ChartVersion:   instrumentationGatewayDefinition.OtelCollectorHelmChartVersion,
+			ValuesDocument: &otelGatewayHelmWorkloadDefinitionValues,
+		})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create otel gateway helm workload definition: %w", err)
+	}
+
+	// update instrumentation gateway definition with helm workload definition id
+	instrumentationGatewayDefinition.OtelGatewayHelmWorkloadDefinitionID = otelGatewayHelmWorkloadDefinition.ID
+
+	// update instrumentation gateway definition
+	instrumentationGatewayDefinition.Reconciled = util.Ptr(true)
+	if _, err := client.UpdateInstrumentationGatewayDefinition(
+		r.APIClient,
+		r.APIServer,
+		instrumentationGatewayDefinition,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update instrumentation gateway definition: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +89,14 @@ func v0InstrumentationGatewayDefinitionDeleted(
 	instrumentationGatewayDefinition *v0.InstrumentationGatewayDefinition,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete otel gateway helm workload definition
+	if _, err := client.DeleteHelmWorkloadDefinition(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationGatewayDefinition.OtelGatewayHelmWorkloadDefinitionID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete otel gateway helm workload definition: %w", err)
+	}
+
 	return 0, nil
 }

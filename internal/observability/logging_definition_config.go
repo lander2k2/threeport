@@ -15,11 +15,10 @@ import (
 // LoggingDefinitionConfig contains configuration for a logging
 // definition reconcile function.
 type LoggingDefinitionConfig struct {
-	r                                    *controller.Reconciler
-	loggingDefinition                    *v0.LoggingDefinition
-	log                                  *logr.Logger
-	lokiHelmWorkloadDefinitionValues     string
-	promtailHelmWorkloadDefinitionValues string
+	r                                *controller.Reconciler
+	loggingDefinition                *v0.LoggingDefinition
+	log                              *logr.Logger
+	lokiHelmWorkloadDefinitionValues string
 }
 
 // getLoggingDefinitionOperations returns a list of operations for a logging definition.
@@ -31,13 +30,6 @@ func (c *LoggingDefinitionConfig) getLoggingDefinitionOperations() *util.Operati
 		Name:   "loki",
 		Create: c.createLokiHelmWorkloadDefinition,
 		Delete: c.deleteLokiHelmWorkloadDefinition,
-	})
-
-	// append promtail operations
-	operations.AppendOperation(util.Operation{
-		Name:   "promtail",
-		Create: c.createPromtailHelmWorkloadDefinition,
-		Delete: c.deletePromtailHelmWorkloadDefinition,
 	})
 
 	return &operations
@@ -77,45 +69,6 @@ func (c *LoggingDefinitionConfig) deleteLokiHelmWorkloadDefinition() error {
 		*c.loggingDefinition.LokiHelmWorkloadDefinitionID,
 	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
 		return fmt.Errorf("failed to delete loki helm workload definition: %w", err)
-	}
-
-	return nil
-}
-
-// createPromtailHelmWorkloadDefinition creates a promtail helm workload definition.
-func (c *LoggingDefinitionConfig) createPromtailHelmWorkloadDefinition() error {
-	// create promtail helm workload definition
-	promtailHelmWorkloadDefinition, err := client.CreateHelmWorkloadDefinition(
-		c.r.APIClient,
-		c.r.APIServer,
-		&v0.HelmWorkloadDefinition{
-			Definition: v0.Definition{
-				Name: util.Ptr(PromtailHelmChartName(*c.loggingDefinition.Name)),
-			},
-			Repo:           util.Ptr(GrafanaHelmRepo),
-			Chart:          util.Ptr("promtail"),
-			ChartVersion:   c.loggingDefinition.PromtailHelmChartVersion,
-			ValuesDocument: &c.promtailHelmWorkloadDefinitionValues,
-		})
-	if err != nil {
-		return fmt.Errorf("failed to create promtail helm workload definition: %w", err)
-	}
-
-	// update logging definition with promtail helm workload definition id
-	c.loggingDefinition.PromtailHelmWorkloadDefinitionID = promtailHelmWorkloadDefinition.ID
-
-	return nil
-}
-
-// deletePromtailHelmWorkloadDefinition creates a promtail helm workload definition.
-func (c *LoggingDefinitionConfig) deletePromtailHelmWorkloadDefinition() error {
-	// delete promtail helm workload definition
-	if _, err := client.DeleteHelmWorkloadDefinition(
-		c.r.APIClient,
-		c.r.APIServer,
-		*c.loggingDefinition.PromtailHelmWorkloadDefinitionID,
-	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
-		return fmt.Errorf("failed to delete promtail helm workload definition: %w", err)
 	}
 
 	return nil

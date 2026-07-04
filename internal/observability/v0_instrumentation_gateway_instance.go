@@ -3,9 +3,17 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
 
 // v0InstrumentationGatewayInstanceCreated performs reconciliation when a v0 InstrumentationGatewayInstance
@@ -15,6 +23,58 @@ func v0InstrumentationGatewayInstanceCreated(
 	instrumentationGatewayInstance *v0.InstrumentationGatewayInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// get instrumentation gateway definition
+	instrumentationGatewayDefinition, err := client.GetInstrumentationGatewayDefinitionByID(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationGatewayInstance.InstrumentationGatewayDefinitionID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get instrumentation gateway definition: %w", err)
+	}
+	if !*instrumentationGatewayDefinition.Reconciled {
+		return 0, fmt.Errorf("instrumentation gateway definition is not reconciled")
+	}
+
+	// merge otel gateway helm values if they are provided
+	otelGatewayHelmWorkloadInstanceValues, err := helmworkload.MergeHelmValuesPtrs(
+		instrumentationGatewayDefinition.OtelGatewayHelmValuesDocument,
+		instrumentationGatewayInstance.OtelGatewayHelmValuesDocument,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge otel gateway helm values: %w", err)
+	}
+
+	// create otel gateway helm workload instance
+	otelGatewayHelmWorkloadInstance, err := client.CreateHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(OtelGatewayHelmChartName(*instrumentationGatewayInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: instrumentationGatewayInstance.KubernetesRuntimeInstanceID,
+			HelmWorkloadDefinitionID:    instrumentationGatewayDefinition.OtelGatewayHelmWorkloadDefinitionID,
+			ValuesDocument:              &otelGatewayHelmWorkloadInstanceValues,
+		},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create otel gateway helm workload instance: %w", err)
+	}
+
+	// update instrumentation gateway instance with otel gateway helm workload instance id
+	instrumentationGatewayInstance.OtelGatewayHelmWorkloadInstanceID = otelGatewayHelmWorkloadInstance.ID
+
+	// update instrumentation gateway instance
+	instrumentationGatewayInstance.Reconciled = util.Ptr(true)
+	if _, err = client.UpdateInstrumentationGatewayInstance(
+		r.APIClient,
+		r.APIServer,
+		instrumentationGatewayInstance,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update instrumentation gateway instance: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +95,14 @@ func v0InstrumentationGatewayInstanceDeleted(
 	instrumentationGatewayInstance *v0.InstrumentationGatewayInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete otel gateway helm workload instance
+	if _, err := client.DeleteHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		*instrumentationGatewayInstance.OtelGatewayHelmWorkloadInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete otel gateway helm workload instance: %w", err)
+	}
+
 	return 0, nil
 }

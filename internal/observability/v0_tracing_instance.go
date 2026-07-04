@@ -3,9 +3,17 @@
 package observability
 
 import (
+	"errors"
+	"fmt"
+
 	logr "github.com/go-logr/logr"
+
+	helmworkload "github.com/threeport/threeport/internal/helm-workload"
 	v0 "github.com/threeport/threeport/pkg/api/v0"
+	client_lib "github.com/threeport/threeport/pkg/client/lib/v0"
+	client "github.com/threeport/threeport/pkg/client/v0"
 	controller "github.com/threeport/threeport/pkg/controller/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
 
 // v0TracingInstanceCreated performs reconciliation when a v0 TracingInstance
@@ -15,6 +23,58 @@ func v0TracingInstanceCreated(
 	tracingInstance *v0.TracingInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// get tracing definition
+	tracingDefinition, err := client.GetTracingDefinitionByID(
+		r.APIClient,
+		r.APIServer,
+		*tracingInstance.TracingDefinitionID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tracing definition: %w", err)
+	}
+	if !*tracingDefinition.Reconciled {
+		return 0, fmt.Errorf("tracing definition is not reconciled")
+	}
+
+	// merge tempo helm values if they are provided
+	tempoHelmWorkloadInstanceValues, err := helmworkload.MergeHelmValuesPtrs(
+		tracingDefinition.TempoHelmValuesDocument,
+		tracingInstance.TempoHelmValuesDocument,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to merge tempo helm values: %w", err)
+	}
+
+	// create tempo helm workload instance
+	tempoHelmWorkloadInstance, err := client.CreateHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		&v0.HelmWorkloadInstance{
+			Instance: v0.Instance{
+				Name: util.Ptr(TempoHelmChartName(*tracingInstance.Name)),
+			},
+			KubernetesRuntimeInstanceID: tracingInstance.KubernetesRuntimeInstanceID,
+			HelmWorkloadDefinitionID:    tracingDefinition.TempoHelmWorkloadDefinitionID,
+			ValuesDocument:              &tempoHelmWorkloadInstanceValues,
+		},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create tempo helm workload instance: %w", err)
+	}
+
+	// update tracing instance with tempo helm workload instance id
+	tracingInstance.TempoHelmWorkloadInstanceID = tempoHelmWorkloadInstance.ID
+
+	// update tracing instance
+	tracingInstance.Reconciled = util.Ptr(true)
+	if _, err = client.UpdateTracingInstance(
+		r.APIClient,
+		r.APIServer,
+		tracingInstance,
+	); err != nil {
+		return 0, fmt.Errorf("failed to update tracing instance: %w", err)
+	}
+
 	return 0, nil
 }
 
@@ -35,5 +95,14 @@ func v0TracingInstanceDeleted(
 	tracingInstance *v0.TracingInstance,
 	log *logr.Logger,
 ) (int64, error) {
+	// delete tempo helm workload instance
+	if _, err := client.DeleteHelmWorkloadInstance(
+		r.APIClient,
+		r.APIServer,
+		*tracingInstance.TempoHelmWorkloadInstanceID,
+	); err != nil && !errors.Is(err, client_lib.ErrObjectNotFound) {
+		return 0, fmt.Errorf("failed to delete tempo helm workload instance: %w", err)
+	}
+
 	return 0, nil
 }
