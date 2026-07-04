@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	config_v0 "github.com/threeport/threeport/pkg/config/v0"
+	util "github.com/threeport/threeport/pkg/util/v0"
 )
 
 // outputGetv0ObservabilityStacksCmd produces the tabular output for the
@@ -16,7 +17,7 @@ func outputGetv0ObservabilityStacksCmd(
 	observabilityStacks *[]config_v0.ObservabilityStackConfig,
 ) error {
 	writer := tabwriter.NewWriter(os.Stdout, 4, 4, 4, ' ', 0)
-	fmt.Fprintln(writer, "NAME\t OBSERVABILITY STACK DEFINITION\t OBSERVABILITY STACK INSTANCE\t KUBERNETES RUNTIME INSTANCE\t METRICS ENABLED\t LOGGING ENABLED\t AGE")
+	fmt.Fprintln(writer, "NAME\t OBSERVABILITY STACK DEFINITION\t OBSERVABILITY STACK INSTANCE\t KUBERNETES RUNTIME INSTANCE\t METRICS ENABLED\t METRICS STORAGE ENABLED\t LOGGING ENABLED\t TRACING ENABLED\t INSTRUMENTATION AGENT ENABLED\t INSTRUMENTATION GATEWAY ENABLED\t INSTRUMENTATION BROWSER RELAY ENABLED\t AGE")
 	for _, observabilityStack := range *observabilityStacks {
 		kubernetesRuntimeInstanceName := ""
 		if observabilityStack.ObservabilityStack.KubernetesRuntimeInstance != nil &&
@@ -33,8 +34,13 @@ func outputGetv0ObservabilityStacksCmd(
 			*observabilityStack.ObservabilityStack.Name, "\t",
 			*observabilityStack.ObservabilityStack.Name, "\t",
 			kubernetesRuntimeInstanceName, "\t",
-			*observabilityStack.ObservabilityStack.MetricsEnabled, "\t",
-			*observabilityStack.ObservabilityStack.LoggingEnabled, "\t",
+			util.Deref(observabilityStack.ObservabilityStack.MetricsEnabled), "\t",
+			util.Deref(observabilityStack.ObservabilityStack.MetricsStorageEnabled), "\t",
+			util.Deref(observabilityStack.ObservabilityStack.LoggingEnabled), "\t",
+			util.Deref(observabilityStack.ObservabilityStack.TracingEnabled), "\t",
+			util.Deref(observabilityStack.ObservabilityStack.InstrumentationAgentEnabled), "\t",
+			util.Deref(observabilityStack.ObservabilityStack.InstrumentationGatewayEnabled), "\t",
+			util.Deref(observabilityStack.ObservabilityStack.InstrumentationBrowserRelayEnabled), "\t",
 			age,
 		)
 	}
@@ -72,7 +78,7 @@ func outputGetv0ObservabilityStackInstancesCmd(
 	observabilityStackInstances *[]config_v0.ObservabilityStackInstanceConfig,
 ) error {
 	writer := tabwriter.NewWriter(os.Stdout, 4, 4, 4, ' ', 0)
-	fmt.Fprintln(writer, "NAME\t OBSERVABILITY STACK DEFINITION\t KUBERNETES RUNTIME INSTANCE\t METRICS ENABLED\t LOGGING ENABLED\t AGE")
+	fmt.Fprintln(writer, "NAME\t OBSERVABILITY STACK DEFINITION\t KUBERNETES RUNTIME INSTANCE\t METRICS ENABLED\t METRICS STORAGE ENABLED\t LOGGING ENABLED\t TRACING ENABLED\t INSTRUMENTATION AGENT ENABLED\t INSTRUMENTATION GATEWAY ENABLED\t INSTRUMENTATION BROWSER RELAY ENABLED\t AGE")
 	for _, observabilityStackInstance := range *observabilityStackInstances {
 		observabilityStackDefinitionName := ""
 		if observabilityStackInstance.ObservabilityStackInstance.ObservabilityStackDefinition != nil &&
@@ -93,8 +99,13 @@ func outputGetv0ObservabilityStackInstancesCmd(
 			*observabilityStackInstance.ObservabilityStackInstance.Name, "\t",
 			observabilityStackDefinitionName, "\t",
 			kubernetesRuntimeInstanceName, "\t",
-			*observabilityStackInstance.ObservabilityStackInstance.MetricsEnabled, "\t",
-			*observabilityStackInstance.ObservabilityStackInstance.LoggingEnabled, "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.MetricsEnabled), "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.MetricsStorageEnabled), "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.LoggingEnabled), "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.TracingEnabled), "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.InstrumentationAgentEnabled), "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.InstrumentationGatewayEnabled), "\t",
+			util.Deref(observabilityStackInstance.ObservabilityStackInstance.InstrumentationBrowserRelayEnabled), "\t",
 			age,
 		)
 	}
