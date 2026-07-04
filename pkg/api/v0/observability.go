@@ -327,7 +327,7 @@ type LoggingDefinition struct {
 	LokiHelmWorkloadDefinitionID *uint `json:",omitempty" validate:"optional" relationship:"owns;type:HelmWorkloadDefinition"`
 
 	// The version of the loki helm chart to use from the helm repo, e.g. 1.2.3
-	LokiHelmChartVersion *string `json:",omitempty" validate:"optional" gorm:"default:'7.1.0'"`
+	LokiHelmChartVersion *string `json:",omitempty" validate:"optional" gorm:"default:'18.4.0'"`
 
 	// Optional Helm workload definition values that can be provided to configure the
 	// underlying loki chart.
