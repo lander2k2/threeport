@@ -10,6 +10,198 @@ import (
 	"reflect"
 )
 
+// AddInstrumentationAgentDefinitionVersions adds field validation info and adds it
+// to the REST API versions.
+func AddInstrumentationAgentDefinitionVersions() {
+	apiserver_v0.InstrumentationAgentDefinitionTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.InstrumentationAgentDefinition)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.InstrumentationAgentDefinitionTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeInstrumentationAgentDefinition),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.InstrumentationAgentDefinitionTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddInstrumentationAgentInstanceVersions adds field validation info and adds it
+// to the REST API versions.
+func AddInstrumentationAgentInstanceVersions() {
+	apiserver_v0.InstrumentationAgentInstanceTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.InstrumentationAgentInstance)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.InstrumentationAgentInstanceTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeInstrumentationAgentInstance),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.InstrumentationAgentInstanceTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddInstrumentationBrowserRelayDefinitionVersions adds field validation info and adds it
+// to the REST API versions.
+func AddInstrumentationBrowserRelayDefinitionVersions() {
+	apiserver_v0.InstrumentationBrowserRelayDefinitionTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.InstrumentationBrowserRelayDefinition)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.InstrumentationBrowserRelayDefinitionTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeInstrumentationBrowserRelayDefinition),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.InstrumentationBrowserRelayDefinitionTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddInstrumentationBrowserRelayInstanceVersions adds field validation info and adds it
+// to the REST API versions.
+func AddInstrumentationBrowserRelayInstanceVersions() {
+	apiserver_v0.InstrumentationBrowserRelayInstanceTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.InstrumentationBrowserRelayInstance)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.InstrumentationBrowserRelayInstanceTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeInstrumentationBrowserRelayInstance),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.InstrumentationBrowserRelayInstanceTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddInstrumentationGatewayDefinitionVersions adds field validation info and adds it
+// to the REST API versions.
+func AddInstrumentationGatewayDefinitionVersions() {
+	apiserver_v0.InstrumentationGatewayDefinitionTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.InstrumentationGatewayDefinition)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.InstrumentationGatewayDefinitionTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeInstrumentationGatewayDefinition),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.InstrumentationGatewayDefinitionTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddInstrumentationGatewayInstanceVersions adds field validation info and adds it
+// to the REST API versions.
+func AddInstrumentationGatewayInstanceVersions() {
+	apiserver_v0.InstrumentationGatewayInstanceTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.InstrumentationGatewayInstance)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.InstrumentationGatewayInstanceTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeInstrumentationGatewayInstance),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.InstrumentationGatewayInstanceTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
 // AddLoggingDefinitionVersions adds field validation info and adds it
 // to the REST API versions.
 func AddLoggingDefinitionVersions() {
@@ -261,6 +453,70 @@ func AddObservabilityStackInstanceVersions() {
 
 	// add the object tagged fields to the global tagged fields map
 	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.ObservabilityStackInstanceTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddTracingDefinitionVersions adds field validation info and adds it
+// to the REST API versions.
+func AddTracingDefinitionVersions() {
+	apiserver_v0.TracingDefinitionTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.TracingDefinition)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.TracingDefinitionTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeTracingDefinition),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.TracingDefinitionTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddTracingInstanceVersions adds field validation info and adds it
+// to the REST API versions.
+func AddTracingInstanceVersions() {
+	apiserver_v0.TracingInstanceTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.TracingInstance)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.TracingInstanceTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeTracingInstance),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.TracingInstanceTaggedFields[string(api_lib.ValidateTag)]
 
 	// add the object tagged fields to the rest API version
 	apiserver_lib.AddObjectVersion(versionObj)

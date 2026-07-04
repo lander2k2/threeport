@@ -8,6 +8,78 @@ import (
 	v0 "github.com/threeport/threeport/pkg/api/v0"
 )
 
+// InstrumentationAgentDefinitionRoutes sets up all routes for the InstrumentationAgentDefinition handlers.
+func InstrumentationAgentDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathInstrumentationAgentDefinitionVersions, h.GetInstrumentationAgentDefinitionVersions)
+
+	e.POST(v0.PathInstrumentationAgentDefinitions, h.AddInstrumentationAgentDefinition)
+	e.GET(v0.PathInstrumentationAgentDefinitions, h.GetInstrumentationAgentDefinitions)
+	e.GET(v0.PathInstrumentationAgentDefinitions+"/:id", h.GetInstrumentationAgentDefinition)
+	e.PATCH(v0.PathInstrumentationAgentDefinitions+"/:id", h.UpdateInstrumentationAgentDefinition)
+	e.PUT(v0.PathInstrumentationAgentDefinitions+"/:id", h.ReplaceInstrumentationAgentDefinition)
+	e.DELETE(v0.PathInstrumentationAgentDefinitions+"/:id", h.DeleteInstrumentationAgentDefinition)
+}
+
+// InstrumentationAgentInstanceRoutes sets up all routes for the InstrumentationAgentInstance handlers.
+func InstrumentationAgentInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathInstrumentationAgentInstanceVersions, h.GetInstrumentationAgentInstanceVersions)
+
+	e.POST(v0.PathInstrumentationAgentInstances, h.AddInstrumentationAgentInstance)
+	e.GET(v0.PathInstrumentationAgentInstances, h.GetInstrumentationAgentInstances)
+	e.GET(v0.PathInstrumentationAgentInstances+"/:id", h.GetInstrumentationAgentInstance)
+	e.PATCH(v0.PathInstrumentationAgentInstances+"/:id", h.UpdateInstrumentationAgentInstance)
+	e.PUT(v0.PathInstrumentationAgentInstances+"/:id", h.ReplaceInstrumentationAgentInstance)
+	e.DELETE(v0.PathInstrumentationAgentInstances+"/:id", h.DeleteInstrumentationAgentInstance)
+}
+
+// InstrumentationBrowserRelayDefinitionRoutes sets up all routes for the InstrumentationBrowserRelayDefinition handlers.
+func InstrumentationBrowserRelayDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathInstrumentationBrowserRelayDefinitionVersions, h.GetInstrumentationBrowserRelayDefinitionVersions)
+
+	e.POST(v0.PathInstrumentationBrowserRelayDefinitions, h.AddInstrumentationBrowserRelayDefinition)
+	e.GET(v0.PathInstrumentationBrowserRelayDefinitions, h.GetInstrumentationBrowserRelayDefinitions)
+	e.GET(v0.PathInstrumentationBrowserRelayDefinitions+"/:id", h.GetInstrumentationBrowserRelayDefinition)
+	e.PATCH(v0.PathInstrumentationBrowserRelayDefinitions+"/:id", h.UpdateInstrumentationBrowserRelayDefinition)
+	e.PUT(v0.PathInstrumentationBrowserRelayDefinitions+"/:id", h.ReplaceInstrumentationBrowserRelayDefinition)
+	e.DELETE(v0.PathInstrumentationBrowserRelayDefinitions+"/:id", h.DeleteInstrumentationBrowserRelayDefinition)
+}
+
+// InstrumentationBrowserRelayInstanceRoutes sets up all routes for the InstrumentationBrowserRelayInstance handlers.
+func InstrumentationBrowserRelayInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathInstrumentationBrowserRelayInstanceVersions, h.GetInstrumentationBrowserRelayInstanceVersions)
+
+	e.POST(v0.PathInstrumentationBrowserRelayInstances, h.AddInstrumentationBrowserRelayInstance)
+	e.GET(v0.PathInstrumentationBrowserRelayInstances, h.GetInstrumentationBrowserRelayInstances)
+	e.GET(v0.PathInstrumentationBrowserRelayInstances+"/:id", h.GetInstrumentationBrowserRelayInstance)
+	e.PATCH(v0.PathInstrumentationBrowserRelayInstances+"/:id", h.UpdateInstrumentationBrowserRelayInstance)
+	e.PUT(v0.PathInstrumentationBrowserRelayInstances+"/:id", h.ReplaceInstrumentationBrowserRelayInstance)
+	e.DELETE(v0.PathInstrumentationBrowserRelayInstances+"/:id", h.DeleteInstrumentationBrowserRelayInstance)
+}
+
+// InstrumentationGatewayDefinitionRoutes sets up all routes for the InstrumentationGatewayDefinition handlers.
+func InstrumentationGatewayDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathInstrumentationGatewayDefinitionVersions, h.GetInstrumentationGatewayDefinitionVersions)
+
+	e.POST(v0.PathInstrumentationGatewayDefinitions, h.AddInstrumentationGatewayDefinition)
+	e.GET(v0.PathInstrumentationGatewayDefinitions, h.GetInstrumentationGatewayDefinitions)
+	e.GET(v0.PathInstrumentationGatewayDefinitions+"/:id", h.GetInstrumentationGatewayDefinition)
+	e.PATCH(v0.PathInstrumentationGatewayDefinitions+"/:id", h.UpdateInstrumentationGatewayDefinition)
+	e.PUT(v0.PathInstrumentationGatewayDefinitions+"/:id", h.ReplaceInstrumentationGatewayDefinition)
+	e.DELETE(v0.PathInstrumentationGatewayDefinitions+"/:id", h.DeleteInstrumentationGatewayDefinition)
+}
+
+// InstrumentationGatewayInstanceRoutes sets up all routes for the InstrumentationGatewayInstance handlers.
+func InstrumentationGatewayInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathInstrumentationGatewayInstanceVersions, h.GetInstrumentationGatewayInstanceVersions)
+
+	e.POST(v0.PathInstrumentationGatewayInstances, h.AddInstrumentationGatewayInstance)
+	e.GET(v0.PathInstrumentationGatewayInstances, h.GetInstrumentationGatewayInstances)
+	e.GET(v0.PathInstrumentationGatewayInstances+"/:id", h.GetInstrumentationGatewayInstance)
+	e.PATCH(v0.PathInstrumentationGatewayInstances+"/:id", h.UpdateInstrumentationGatewayInstance)
+	e.PUT(v0.PathInstrumentationGatewayInstances+"/:id", h.ReplaceInstrumentationGatewayInstance)
+	e.DELETE(v0.PathInstrumentationGatewayInstances+"/:id", h.DeleteInstrumentationGatewayInstance)
+}
+
 // LoggingDefinitionRoutes sets up all routes for the LoggingDefinition handlers.
 func LoggingDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
 	e.GET(v0.PathLoggingDefinitionVersions, h.GetLoggingDefinitionVersions)
@@ -102,4 +174,28 @@ func ObservabilityStackInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
 	e.PATCH(v0.PathObservabilityStackInstances+"/:id", h.UpdateObservabilityStackInstance)
 	e.PUT(v0.PathObservabilityStackInstances+"/:id", h.ReplaceObservabilityStackInstance)
 	e.DELETE(v0.PathObservabilityStackInstances+"/:id", h.DeleteObservabilityStackInstance)
+}
+
+// TracingDefinitionRoutes sets up all routes for the TracingDefinition handlers.
+func TracingDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathTracingDefinitionVersions, h.GetTracingDefinitionVersions)
+
+	e.POST(v0.PathTracingDefinitions, h.AddTracingDefinition)
+	e.GET(v0.PathTracingDefinitions, h.GetTracingDefinitions)
+	e.GET(v0.PathTracingDefinitions+"/:id", h.GetTracingDefinition)
+	e.PATCH(v0.PathTracingDefinitions+"/:id", h.UpdateTracingDefinition)
+	e.PUT(v0.PathTracingDefinitions+"/:id", h.ReplaceTracingDefinition)
+	e.DELETE(v0.PathTracingDefinitions+"/:id", h.DeleteTracingDefinition)
+}
+
+// TracingInstanceRoutes sets up all routes for the TracingInstance handlers.
+func TracingInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathTracingInstanceVersions, h.GetTracingInstanceVersions)
+
+	e.POST(v0.PathTracingInstances, h.AddTracingInstance)
+	e.GET(v0.PathTracingInstances, h.GetTracingInstances)
+	e.GET(v0.PathTracingInstances+"/:id", h.GetTracingInstance)
+	e.PATCH(v0.PathTracingInstances+"/:id", h.UpdateTracingInstance)
+	e.PUT(v0.PathTracingInstances+"/:id", h.ReplaceTracingInstance)
+	e.DELETE(v0.PathTracingInstances+"/:id", h.DeleteTracingInstance)
 }

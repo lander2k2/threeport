@@ -67,6 +67,46 @@ func main() {
 		1,
 		"Number of concurrent reconcilers to run for logging instances",
 	)
+	var tracingDefinitionConcurrentReconciles = flag.Int(
+		"tracing-definition-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for tracing definitions",
+	)
+	var tracingInstanceConcurrentReconciles = flag.Int(
+		"tracing-instance-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for tracing instances",
+	)
+	var instrumentationAgentDefinitionConcurrentReconciles = flag.Int(
+		"instrumentation-agent-definition-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for instrumentation agent definitions",
+	)
+	var instrumentationAgentInstanceConcurrentReconciles = flag.Int(
+		"instrumentation-agent-instance-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for instrumentation agent instances",
+	)
+	var instrumentationGatewayDefinitionConcurrentReconciles = flag.Int(
+		"instrumentation-gateway-definition-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for instrumentation gateway definitions",
+	)
+	var instrumentationGatewayInstanceConcurrentReconciles = flag.Int(
+		"instrumentation-gateway-instance-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for instrumentation gateway instances",
+	)
+	var instrumentationBrowserRelayDefinitionConcurrentReconciles = flag.Int(
+		"instrumentation-browser-relay-definition-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for instrumentation browser relay definitions",
+	)
+	var instrumentationBrowserRelayInstanceConcurrentReconciles = flag.Int(
+		"instrumentation-browser-relay-instance-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for instrumentation browser relay instances",
+	)
 
 	var apiServer = flag.String("api-server", "threeport-api-server.threeport-control-plane.svc.cluster.local", "Threepoort REST API server endpoint")
 	var msgBrokerHost = flag.String("msg-broker-host", "", "Threeport message broker hostname")
@@ -207,6 +247,54 @@ func main() {
 		Name:                 "LoggingInstanceReconciler",
 		NotifSubject:         notif.LoggingInstanceSubject,
 		ReconcileFunc:        observability.LoggingInstanceReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *tracingDefinitionConcurrentReconciles,
+		Name:                 "TracingDefinitionReconciler",
+		NotifSubject:         notif.TracingDefinitionSubject,
+		ReconcileFunc:        observability.TracingDefinitionReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *tracingInstanceConcurrentReconciles,
+		Name:                 "TracingInstanceReconciler",
+		NotifSubject:         notif.TracingInstanceSubject,
+		ReconcileFunc:        observability.TracingInstanceReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *instrumentationAgentDefinitionConcurrentReconciles,
+		Name:                 "InstrumentationAgentDefinitionReconciler",
+		NotifSubject:         notif.InstrumentationAgentDefinitionSubject,
+		ReconcileFunc:        observability.InstrumentationAgentDefinitionReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *instrumentationAgentInstanceConcurrentReconciles,
+		Name:                 "InstrumentationAgentInstanceReconciler",
+		NotifSubject:         notif.InstrumentationAgentInstanceSubject,
+		ReconcileFunc:        observability.InstrumentationAgentInstanceReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *instrumentationGatewayDefinitionConcurrentReconciles,
+		Name:                 "InstrumentationGatewayDefinitionReconciler",
+		NotifSubject:         notif.InstrumentationGatewayDefinitionSubject,
+		ReconcileFunc:        observability.InstrumentationGatewayDefinitionReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *instrumentationGatewayInstanceConcurrentReconciles,
+		Name:                 "InstrumentationGatewayInstanceReconciler",
+		NotifSubject:         notif.InstrumentationGatewayInstanceSubject,
+		ReconcileFunc:        observability.InstrumentationGatewayInstanceReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *instrumentationBrowserRelayDefinitionConcurrentReconciles,
+		Name:                 "InstrumentationBrowserRelayDefinitionReconciler",
+		NotifSubject:         notif.InstrumentationBrowserRelayDefinitionSubject,
+		ReconcileFunc:        observability.InstrumentationBrowserRelayDefinitionReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *instrumentationBrowserRelayInstanceConcurrentReconciles,
+		Name:                 "InstrumentationBrowserRelayInstanceReconciler",
+		NotifSubject:         notif.InstrumentationBrowserRelayInstanceSubject,
+		ReconcileFunc:        observability.InstrumentationBrowserRelayInstanceReconciler,
 	})
 
 	for _, r := range reconcilerConfigs {

@@ -10,32 +10,536 @@ import (
 )
 
 const (
-	ObjectTypeLoggingDefinition                string = "LoggingDefinition"
-	ObjectTypeLoggingInstance                  string = "LoggingInstance"
-	ObjectTypeMetricsDefinition                string = "MetricsDefinition"
-	ObjectTypeMetricsInstance                  string = "MetricsInstance"
-	ObjectTypeObservabilityDashboardDefinition string = "ObservabilityDashboardDefinition"
-	ObjectTypeObservabilityDashboardInstance   string = "ObservabilityDashboardInstance"
-	ObjectTypeObservabilityStackDefinition     string = "ObservabilityStackDefinition"
-	ObjectTypeObservabilityStackInstance       string = "ObservabilityStackInstance"
+	ObjectTypeInstrumentationAgentDefinition        string = "InstrumentationAgentDefinition"
+	ObjectTypeInstrumentationAgentInstance          string = "InstrumentationAgentInstance"
+	ObjectTypeInstrumentationBrowserRelayDefinition string = "InstrumentationBrowserRelayDefinition"
+	ObjectTypeInstrumentationBrowserRelayInstance   string = "InstrumentationBrowserRelayInstance"
+	ObjectTypeInstrumentationGatewayDefinition      string = "InstrumentationGatewayDefinition"
+	ObjectTypeInstrumentationGatewayInstance        string = "InstrumentationGatewayInstance"
+	ObjectTypeLoggingDefinition                     string = "LoggingDefinition"
+	ObjectTypeLoggingInstance                       string = "LoggingInstance"
+	ObjectTypeMetricsDefinition                     string = "MetricsDefinition"
+	ObjectTypeMetricsInstance                       string = "MetricsInstance"
+	ObjectTypeObservabilityDashboardDefinition      string = "ObservabilityDashboardDefinition"
+	ObjectTypeObservabilityDashboardInstance        string = "ObservabilityDashboardInstance"
+	ObjectTypeObservabilityStackDefinition          string = "ObservabilityStackDefinition"
+	ObjectTypeObservabilityStackInstance            string = "ObservabilityStackInstance"
+	ObjectTypeTracingDefinition                     string = "TracingDefinition"
+	ObjectTypeTracingInstance                       string = "TracingInstance"
 
-	PathLoggingDefinitionVersions                = "/logging-definitions/versions"
-	PathLoggingDefinitions                       = "/v0/logging-definitions"
-	PathLoggingInstanceVersions                  = "/logging-instances/versions"
-	PathLoggingInstances                         = "/v0/logging-instances"
-	PathMetricsDefinitionVersions                = "/metrics-definitions/versions"
-	PathMetricsDefinitions                       = "/v0/metrics-definitions"
-	PathMetricsInstanceVersions                  = "/metrics-instances/versions"
-	PathMetricsInstances                         = "/v0/metrics-instances"
-	PathObservabilityDashboardDefinitionVersions = "/observability-dashboard-definitions/versions"
-	PathObservabilityDashboardDefinitions        = "/v0/observability-dashboard-definitions"
-	PathObservabilityDashboardInstanceVersions   = "/observability-dashboard-instances/versions"
-	PathObservabilityDashboardInstances          = "/v0/observability-dashboard-instances"
-	PathObservabilityStackDefinitionVersions     = "/observability-stack-definitions/versions"
-	PathObservabilityStackDefinitions            = "/v0/observability-stack-definitions"
-	PathObservabilityStackInstanceVersions       = "/observability-stack-instances/versions"
-	PathObservabilityStackInstances              = "/v0/observability-stack-instances"
+	PathInstrumentationAgentDefinitionVersions        = "/instrumentation-agent-definitions/versions"
+	PathInstrumentationAgentDefinitions               = "/v0/instrumentation-agent-definitions"
+	PathInstrumentationAgentInstanceVersions          = "/instrumentation-agent-instances/versions"
+	PathInstrumentationAgentInstances                 = "/v0/instrumentation-agent-instances"
+	PathInstrumentationBrowserRelayDefinitionVersions = "/instrumentation-browser-relay-definitions/versions"
+	PathInstrumentationBrowserRelayDefinitions        = "/v0/instrumentation-browser-relay-definitions"
+	PathInstrumentationBrowserRelayInstanceVersions   = "/instrumentation-browser-relay-instances/versions"
+	PathInstrumentationBrowserRelayInstances          = "/v0/instrumentation-browser-relay-instances"
+	PathInstrumentationGatewayDefinitionVersions      = "/instrumentation-gateway-definitions/versions"
+	PathInstrumentationGatewayDefinitions             = "/v0/instrumentation-gateway-definitions"
+	PathInstrumentationGatewayInstanceVersions        = "/instrumentation-gateway-instances/versions"
+	PathInstrumentationGatewayInstances               = "/v0/instrumentation-gateway-instances"
+	PathLoggingDefinitionVersions                     = "/logging-definitions/versions"
+	PathLoggingDefinitions                            = "/v0/logging-definitions"
+	PathLoggingInstanceVersions                       = "/logging-instances/versions"
+	PathLoggingInstances                              = "/v0/logging-instances"
+	PathMetricsDefinitionVersions                     = "/metrics-definitions/versions"
+	PathMetricsDefinitions                            = "/v0/metrics-definitions"
+	PathMetricsInstanceVersions                       = "/metrics-instances/versions"
+	PathMetricsInstances                              = "/v0/metrics-instances"
+	PathObservabilityDashboardDefinitionVersions      = "/observability-dashboard-definitions/versions"
+	PathObservabilityDashboardDefinitions             = "/v0/observability-dashboard-definitions"
+	PathObservabilityDashboardInstanceVersions        = "/observability-dashboard-instances/versions"
+	PathObservabilityDashboardInstances               = "/v0/observability-dashboard-instances"
+	PathObservabilityStackDefinitionVersions          = "/observability-stack-definitions/versions"
+	PathObservabilityStackDefinitions                 = "/v0/observability-stack-definitions"
+	PathObservabilityStackInstanceVersions            = "/observability-stack-instances/versions"
+	PathObservabilityStackInstances                   = "/v0/observability-stack-instances"
+	PathTracingDefinitionVersions                     = "/tracing-definitions/versions"
+	PathTracingDefinitions                            = "/v0/tracing-definitions"
+	PathTracingInstanceVersions                       = "/tracing-instances/versions"
+	PathTracingInstances                              = "/v0/tracing-instances"
 )
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (iad *InstrumentationAgentDefinition) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        iad,
+		ObjectVersion: iad.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", iad, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (iad *InstrumentationAgentDefinition) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &iad); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (iad *InstrumentationAgentDefinition) GetId() uint {
+	return *iad.ID
+}
+
+// GetType returns the object type.
+func (iad *InstrumentationAgentDefinition) GetType() string {
+	return "InstrumentationAgentDefinition"
+}
+
+// GetVersion returns the version of the API object.
+func (iad *InstrumentationAgentDefinition) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (iad *InstrumentationAgentDefinition) GetFullyQualifiedType() string {
+	return "threeport.io/v0.InstrumentationAgentDefinition"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (iad *InstrumentationAgentDefinition) ScheduledForDeletion() *time.Time {
+	return iad.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "OtelAgentHelmWorkloadDefinitionID",
+		ObjectID:     i.OtelAgentHelmWorkloadDefinitionID,
+		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (iai *InstrumentationAgentInstance) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        iai,
+		ObjectVersion: iai.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", iai, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (iai *InstrumentationAgentInstance) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &iai); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (iai *InstrumentationAgentInstance) GetId() uint {
+	return *iai.ID
+}
+
+// GetType returns the object type.
+func (iai *InstrumentationAgentInstance) GetType() string {
+	return "InstrumentationAgentInstance"
+}
+
+// GetVersion returns the version of the API object.
+func (iai *InstrumentationAgentInstance) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (iai *InstrumentationAgentInstance) GetFullyQualifiedType() string {
+	return "threeport.io/v0.InstrumentationAgentInstance"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (iai *InstrumentationAgentInstance) ScheduledForDeletion() *time.Time {
+	return iai.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "InstrumentationAgentDefinitionID",
+		ObjectID:     i.InstrumentationAgentDefinitionID,
+		ObjectType:   new(InstrumentationAgentDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "KubernetesRuntimeInstanceID",
+		ObjectID:     i.KubernetesRuntimeInstanceID,
+		ObjectType:   new(KubernetesRuntimeInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "OtelAgentHelmWorkloadInstanceID",
+		ObjectID:     i.OtelAgentHelmWorkloadInstanceID,
+		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (ibrd *InstrumentationBrowserRelayDefinition) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        ibrd,
+		ObjectVersion: ibrd.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", ibrd, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (ibrd *InstrumentationBrowserRelayDefinition) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &ibrd); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (ibrd *InstrumentationBrowserRelayDefinition) GetId() uint {
+	return *ibrd.ID
+}
+
+// GetType returns the object type.
+func (ibrd *InstrumentationBrowserRelayDefinition) GetType() string {
+	return "InstrumentationBrowserRelayDefinition"
+}
+
+// GetVersion returns the version of the API object.
+func (ibrd *InstrumentationBrowserRelayDefinition) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (ibrd *InstrumentationBrowserRelayDefinition) GetFullyQualifiedType() string {
+	return "threeport.io/v0.InstrumentationBrowserRelayDefinition"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (ibrd *InstrumentationBrowserRelayDefinition) ScheduledForDeletion() *time.Time {
+	return ibrd.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "OtelBrowserRelayHelmWorkloadDefinitionID",
+		ObjectID:     i.OtelBrowserRelayHelmWorkloadDefinitionID,
+		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (ibri *InstrumentationBrowserRelayInstance) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        ibri,
+		ObjectVersion: ibri.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", ibri, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (ibri *InstrumentationBrowserRelayInstance) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &ibri); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (ibri *InstrumentationBrowserRelayInstance) GetId() uint {
+	return *ibri.ID
+}
+
+// GetType returns the object type.
+func (ibri *InstrumentationBrowserRelayInstance) GetType() string {
+	return "InstrumentationBrowserRelayInstance"
+}
+
+// GetVersion returns the version of the API object.
+func (ibri *InstrumentationBrowserRelayInstance) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (ibri *InstrumentationBrowserRelayInstance) GetFullyQualifiedType() string {
+	return "threeport.io/v0.InstrumentationBrowserRelayInstance"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (ibri *InstrumentationBrowserRelayInstance) ScheduledForDeletion() *time.Time {
+	return ibri.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "InstrumentationBrowserRelayDefinitionID",
+		ObjectID:     i.InstrumentationBrowserRelayDefinitionID,
+		ObjectType:   new(InstrumentationBrowserRelayDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "KubernetesRuntimeInstanceID",
+		ObjectID:     i.KubernetesRuntimeInstanceID,
+		ObjectType:   new(KubernetesRuntimeInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "OtelBrowserRelayHelmWorkloadInstanceID",
+		ObjectID:     i.OtelBrowserRelayHelmWorkloadInstanceID,
+		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (igd *InstrumentationGatewayDefinition) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        igd,
+		ObjectVersion: igd.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", igd, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (igd *InstrumentationGatewayDefinition) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &igd); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (igd *InstrumentationGatewayDefinition) GetId() uint {
+	return *igd.ID
+}
+
+// GetType returns the object type.
+func (igd *InstrumentationGatewayDefinition) GetType() string {
+	return "InstrumentationGatewayDefinition"
+}
+
+// GetVersion returns the version of the API object.
+func (igd *InstrumentationGatewayDefinition) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (igd *InstrumentationGatewayDefinition) GetFullyQualifiedType() string {
+	return "threeport.io/v0.InstrumentationGatewayDefinition"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (igd *InstrumentationGatewayDefinition) ScheduledForDeletion() *time.Time {
+	return igd.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "OtelGatewayHelmWorkloadDefinitionID",
+		ObjectID:     i.OtelGatewayHelmWorkloadDefinitionID,
+		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (igi *InstrumentationGatewayInstance) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        igi,
+		ObjectVersion: igi.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", igi, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (igi *InstrumentationGatewayInstance) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &igi); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (igi *InstrumentationGatewayInstance) GetId() uint {
+	return *igi.ID
+}
+
+// GetType returns the object type.
+func (igi *InstrumentationGatewayInstance) GetType() string {
+	return "InstrumentationGatewayInstance"
+}
+
+// GetVersion returns the version of the API object.
+func (igi *InstrumentationGatewayInstance) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (igi *InstrumentationGatewayInstance) GetFullyQualifiedType() string {
+	return "threeport.io/v0.InstrumentationGatewayInstance"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (igi *InstrumentationGatewayInstance) ScheduledForDeletion() *time.Time {
+	return igi.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "InstrumentationGatewayDefinitionID",
+		ObjectID:     i.InstrumentationGatewayDefinitionID,
+		ObjectType:   new(InstrumentationGatewayDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "KubernetesRuntimeInstanceID",
+		ObjectID:     i.KubernetesRuntimeInstanceID,
+		ObjectType:   new(KubernetesRuntimeInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "OtelGatewayHelmWorkloadInstanceID",
+		ObjectID:     i.OtelGatewayHelmWorkloadInstanceID,
+		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
 
 // NotificationPayload returns the notification payload that is delivered to the
 // controller when a change is made.  It includes the object as presented by the
@@ -107,11 +611,6 @@ func (l *LoggingDefinition) RelationshipTaggedForeignKeys() []RelationshipTagged
 	return []RelationshipTaggedForeignKey{{
 		FieldName:    "LokiHelmWorkloadDefinitionID",
 		ObjectID:     l.LokiHelmWorkloadDefinitionID,
-		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
-		Relationship: RelationshipOwns,
-	}, {
-		FieldName:    "PromtailHelmWorkloadDefinitionID",
-		ObjectID:     l.PromtailHelmWorkloadDefinitionID,
 		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
 	}}
@@ -199,11 +698,6 @@ func (l *LoggingInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedFo
 		ObjectID:     l.LokiHelmWorkloadInstanceID,
 		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
-	}, {
-		FieldName:    "PromtailHelmWorkloadInstanceID",
-		ObjectID:     l.PromtailHelmWorkloadInstanceID,
-		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
-		Relationship: RelationshipOwns,
 	}}
 }
 
@@ -277,6 +771,11 @@ func (m *MetricsDefinition) RelationshipTaggedForeignKeys() []RelationshipTagged
 	return []RelationshipTaggedForeignKey{{
 		FieldName:    "KubePrometheusStackHelmWorkloadDefinitionID",
 		ObjectID:     m.KubePrometheusStackHelmWorkloadDefinitionID,
+		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "MimirHelmWorkloadDefinitionID",
+		ObjectID:     m.MimirHelmWorkloadDefinitionID,
 		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
 	}}
@@ -364,6 +863,11 @@ func (m *MetricsInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedFo
 		ObjectID:     m.MetricsDefinitionID,
 		ObjectType:   new(MetricsDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "MimirHelmWorkloadInstanceID",
+		ObjectID:     m.MimirHelmWorkloadInstanceID,
+		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
 	}}
 }
 
@@ -595,6 +1099,21 @@ func (osd *ObservabilityStackDefinition) ScheduledForDeletion() *time.Time {
 // RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on ObservabilityStackDefinition.
 func (o *ObservabilityStackDefinition) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
 	return []RelationshipTaggedForeignKey{{
+		FieldName:    "InstrumentationAgentDefinitionID",
+		ObjectID:     o.InstrumentationAgentDefinitionID,
+		ObjectType:   new(InstrumentationAgentDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "InstrumentationBrowserRelayDefinitionID",
+		ObjectID:     o.InstrumentationBrowserRelayDefinitionID,
+		ObjectType:   new(InstrumentationBrowserRelayDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "InstrumentationGatewayDefinitionID",
+		ObjectID:     o.InstrumentationGatewayDefinitionID,
+		ObjectType:   new(InstrumentationGatewayDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
 		FieldName:    "LoggingDefinitionID",
 		ObjectID:     o.LoggingDefinitionID,
 		ObjectType:   new(LoggingDefinition).GetFullyQualifiedType(),
@@ -608,6 +1127,11 @@ func (o *ObservabilityStackDefinition) RelationshipTaggedForeignKeys() []Relatio
 		FieldName:    "ObservabilityDashboardDefinitionID",
 		ObjectID:     o.ObservabilityDashboardDefinitionID,
 		ObjectType:   new(ObservabilityDashboardDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "TracingDefinitionID",
+		ObjectID:     o.TracingDefinitionID,
+		ObjectType:   new(TracingDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
 	}}
 }
@@ -680,6 +1204,21 @@ func (osi *ObservabilityStackInstance) ScheduledForDeletion() *time.Time {
 // RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on ObservabilityStackInstance.
 func (o *ObservabilityStackInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
 	return []RelationshipTaggedForeignKey{{
+		FieldName:    "InstrumentationAgentInstanceID",
+		ObjectID:     o.InstrumentationAgentInstanceID,
+		ObjectType:   new(InstrumentationAgentInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "InstrumentationBrowserRelayInstanceID",
+		ObjectID:     o.InstrumentationBrowserRelayInstanceID,
+		ObjectType:   new(InstrumentationBrowserRelayInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "InstrumentationGatewayInstanceID",
+		ObjectID:     o.InstrumentationGatewayInstanceID,
+		ObjectType:   new(InstrumentationGatewayInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
 		FieldName:    "KubernetesRuntimeInstanceID",
 		ObjectID:     o.KubernetesRuntimeInstanceID,
 		ObjectType:   new(KubernetesRuntimeInstance).GetFullyQualifiedType(),
@@ -703,6 +1242,171 @@ func (o *ObservabilityStackInstance) RelationshipTaggedForeignKeys() []Relations
 		FieldName:    "ObservabilityStackDefinitionID",
 		ObjectID:     o.ObservabilityStackDefinitionID,
 		ObjectType:   new(ObservabilityStackDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "TracingInstanceID",
+		ObjectID:     o.TracingInstanceID,
+		ObjectType:   new(TracingInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (td *TracingDefinition) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        td,
+		ObjectVersion: td.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", td, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (td *TracingDefinition) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &td); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (td *TracingDefinition) GetId() uint {
+	return *td.ID
+}
+
+// GetType returns the object type.
+func (td *TracingDefinition) GetType() string {
+	return "TracingDefinition"
+}
+
+// GetVersion returns the version of the API object.
+func (td *TracingDefinition) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (td *TracingDefinition) GetFullyQualifiedType() string {
+	return "threeport.io/v0.TracingDefinition"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (td *TracingDefinition) ScheduledForDeletion() *time.Time {
+	return td.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on TracingDefinition.
+func (t *TracingDefinition) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "TempoHelmWorkloadDefinitionID",
+		ObjectID:     t.TempoHelmWorkloadDefinitionID,
+		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (ti *TracingInstance) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        ti,
+		ObjectVersion: ti.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", ti, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (ti *TracingInstance) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &ti); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (ti *TracingInstance) GetId() uint {
+	return *ti.ID
+}
+
+// GetType returns the object type.
+func (ti *TracingInstance) GetType() string {
+	return "TracingInstance"
+}
+
+// GetVersion returns the version of the API object.
+func (ti *TracingInstance) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (ti *TracingInstance) GetFullyQualifiedType() string {
+	return "threeport.io/v0.TracingInstance"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (ti *TracingInstance) ScheduledForDeletion() *time.Time {
+	return ti.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on TracingInstance.
+func (t *TracingInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "KubernetesRuntimeInstanceID",
+		ObjectID:     t.KubernetesRuntimeInstanceID,
+		ObjectType:   new(KubernetesRuntimeInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "TempoHelmWorkloadInstanceID",
+		ObjectID:     t.TempoHelmWorkloadInstanceID,
+		ObjectType:   new(HelmWorkloadInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "TracingDefinitionID",
+		ObjectID:     t.TracingDefinitionID,
+		ObjectType:   new(TracingDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipRequires,
 	}}
 }

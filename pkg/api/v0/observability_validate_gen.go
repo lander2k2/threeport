@@ -4,6 +4,294 @@ package v0
 
 import gorm "gorm.io/gorm"
 
+// BeforeCreate is the GORM before-create hook for InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) BeforeCreate(tx *gorm.DB) error {
+	if err := i.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, i)
+}
+
+// BeforeUpdate is the GORM before-update hook for InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) BeforeUpdate(tx *gorm.DB) error {
+	if err := i.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, i)
+}
+
+// BeforeDelete is the GORM before-delete hook for InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) BeforeDelete(tx *gorm.DB) error {
+	if err := i.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, i)
+}
+
+// AfterCreate is the GORM after-create hook for InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) AfterCreate(tx *gorm.DB) error {
+	if err := i.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, i)
+}
+
+// AfterUpdate is the GORM after-update hook for InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) AfterUpdate(tx *gorm.DB) error {
+	if err := i.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, i)
+}
+
+// AfterDelete is the GORM after-delete hook for InstrumentationAgentDefinition.
+func (i *InstrumentationAgentDefinition) AfterDelete(tx *gorm.DB) error {
+	if err := i.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, i)
+}
+
+// BeforeCreate is the GORM before-create hook for InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) BeforeCreate(tx *gorm.DB) error {
+	if err := i.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, i)
+}
+
+// BeforeUpdate is the GORM before-update hook for InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) BeforeUpdate(tx *gorm.DB) error {
+	if err := i.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, i)
+}
+
+// BeforeDelete is the GORM before-delete hook for InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) BeforeDelete(tx *gorm.DB) error {
+	if err := i.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, i)
+}
+
+// AfterCreate is the GORM after-create hook for InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) AfterCreate(tx *gorm.DB) error {
+	if err := i.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, i)
+}
+
+// AfterUpdate is the GORM after-update hook for InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) AfterUpdate(tx *gorm.DB) error {
+	if err := i.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, i)
+}
+
+// AfterDelete is the GORM after-delete hook for InstrumentationAgentInstance.
+func (i *InstrumentationAgentInstance) AfterDelete(tx *gorm.DB) error {
+	if err := i.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, i)
+}
+
+// BeforeCreate is the GORM before-create hook for InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) BeforeCreate(tx *gorm.DB) error {
+	if err := i.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, i)
+}
+
+// BeforeUpdate is the GORM before-update hook for InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) BeforeUpdate(tx *gorm.DB) error {
+	if err := i.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, i)
+}
+
+// BeforeDelete is the GORM before-delete hook for InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) BeforeDelete(tx *gorm.DB) error {
+	if err := i.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, i)
+}
+
+// AfterCreate is the GORM after-create hook for InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) AfterCreate(tx *gorm.DB) error {
+	if err := i.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, i)
+}
+
+// AfterUpdate is the GORM after-update hook for InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) AfterUpdate(tx *gorm.DB) error {
+	if err := i.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, i)
+}
+
+// AfterDelete is the GORM after-delete hook for InstrumentationBrowserRelayDefinition.
+func (i *InstrumentationBrowserRelayDefinition) AfterDelete(tx *gorm.DB) error {
+	if err := i.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, i)
+}
+
+// BeforeCreate is the GORM before-create hook for InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) BeforeCreate(tx *gorm.DB) error {
+	if err := i.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, i)
+}
+
+// BeforeUpdate is the GORM before-update hook for InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) BeforeUpdate(tx *gorm.DB) error {
+	if err := i.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, i)
+}
+
+// BeforeDelete is the GORM before-delete hook for InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) BeforeDelete(tx *gorm.DB) error {
+	if err := i.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, i)
+}
+
+// AfterCreate is the GORM after-create hook for InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) AfterCreate(tx *gorm.DB) error {
+	if err := i.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, i)
+}
+
+// AfterUpdate is the GORM after-update hook for InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) AfterUpdate(tx *gorm.DB) error {
+	if err := i.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, i)
+}
+
+// AfterDelete is the GORM after-delete hook for InstrumentationBrowserRelayInstance.
+func (i *InstrumentationBrowserRelayInstance) AfterDelete(tx *gorm.DB) error {
+	if err := i.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, i)
+}
+
+// BeforeCreate is the GORM before-create hook for InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) BeforeCreate(tx *gorm.DB) error {
+	if err := i.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, i)
+}
+
+// BeforeUpdate is the GORM before-update hook for InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) BeforeUpdate(tx *gorm.DB) error {
+	if err := i.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, i)
+}
+
+// BeforeDelete is the GORM before-delete hook for InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) BeforeDelete(tx *gorm.DB) error {
+	if err := i.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, i)
+}
+
+// AfterCreate is the GORM after-create hook for InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) AfterCreate(tx *gorm.DB) error {
+	if err := i.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, i)
+}
+
+// AfterUpdate is the GORM after-update hook for InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) AfterUpdate(tx *gorm.DB) error {
+	if err := i.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, i)
+}
+
+// AfterDelete is the GORM after-delete hook for InstrumentationGatewayDefinition.
+func (i *InstrumentationGatewayDefinition) AfterDelete(tx *gorm.DB) error {
+	if err := i.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, i)
+}
+
+// BeforeCreate is the GORM before-create hook for InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) BeforeCreate(tx *gorm.DB) error {
+	if err := i.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, i)
+}
+
+// BeforeUpdate is the GORM before-update hook for InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) BeforeUpdate(tx *gorm.DB) error {
+	if err := i.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, i)
+}
+
+// BeforeDelete is the GORM before-delete hook for InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) BeforeDelete(tx *gorm.DB) error {
+	if err := i.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, i)
+}
+
+// AfterCreate is the GORM after-create hook for InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) AfterCreate(tx *gorm.DB) error {
+	if err := i.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, i)
+}
+
+// AfterUpdate is the GORM after-update hook for InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) AfterUpdate(tx *gorm.DB) error {
+	if err := i.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, i)
+}
+
+// AfterDelete is the GORM after-delete hook for InstrumentationGatewayInstance.
+func (i *InstrumentationGatewayInstance) AfterDelete(tx *gorm.DB) error {
+	if err := i.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, i)
+}
+
 // BeforeCreate is the GORM before-create hook for LoggingDefinition.
 func (l *LoggingDefinition) BeforeCreate(tx *gorm.DB) error {
 	if err := l.beforeCreate(tx); err != nil {
@@ -386,4 +674,100 @@ func (o *ObservabilityStackInstance) AfterDelete(tx *gorm.DB) error {
 		return err
 	}
 	return ProcessCoreTaggedFieldsAfterDelete(tx, o)
+}
+
+// BeforeCreate is the GORM before-create hook for TracingDefinition.
+func (t *TracingDefinition) BeforeCreate(tx *gorm.DB) error {
+	if err := t.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, t)
+}
+
+// BeforeUpdate is the GORM before-update hook for TracingDefinition.
+func (t *TracingDefinition) BeforeUpdate(tx *gorm.DB) error {
+	if err := t.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, t)
+}
+
+// BeforeDelete is the GORM before-delete hook for TracingDefinition.
+func (t *TracingDefinition) BeforeDelete(tx *gorm.DB) error {
+	if err := t.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, t)
+}
+
+// AfterCreate is the GORM after-create hook for TracingDefinition.
+func (t *TracingDefinition) AfterCreate(tx *gorm.DB) error {
+	if err := t.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, t)
+}
+
+// AfterUpdate is the GORM after-update hook for TracingDefinition.
+func (t *TracingDefinition) AfterUpdate(tx *gorm.DB) error {
+	if err := t.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, t)
+}
+
+// AfterDelete is the GORM after-delete hook for TracingDefinition.
+func (t *TracingDefinition) AfterDelete(tx *gorm.DB) error {
+	if err := t.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, t)
+}
+
+// BeforeCreate is the GORM before-create hook for TracingInstance.
+func (t *TracingInstance) BeforeCreate(tx *gorm.DB) error {
+	if err := t.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, t)
+}
+
+// BeforeUpdate is the GORM before-update hook for TracingInstance.
+func (t *TracingInstance) BeforeUpdate(tx *gorm.DB) error {
+	if err := t.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, t)
+}
+
+// BeforeDelete is the GORM before-delete hook for TracingInstance.
+func (t *TracingInstance) BeforeDelete(tx *gorm.DB) error {
+	if err := t.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, t)
+}
+
+// AfterCreate is the GORM after-create hook for TracingInstance.
+func (t *TracingInstance) AfterCreate(tx *gorm.DB) error {
+	if err := t.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, t)
+}
+
+// AfterUpdate is the GORM after-update hook for TracingInstance.
+func (t *TracingInstance) AfterUpdate(tx *gorm.DB) error {
+	if err := t.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, t)
+}
+
+// AfterDelete is the GORM after-delete hook for TracingInstance.
+func (t *TracingInstance) AfterDelete(tx *gorm.DB) error {
+	if err := t.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, t)
 }

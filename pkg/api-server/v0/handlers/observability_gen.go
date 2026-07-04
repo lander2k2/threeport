@@ -18,6 +18,3246 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// InstrumentationAgentDefinition
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetInstrumentationAgentDefinitionVersions gets the supported versions for the instrumentation agent definition API.
+// @Description Get the supported API versions for instrumentation agent definitions.
+// @ID instrumentationAgentDefinition-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /instrumentation-agent-definitions/versions [GET]
+func (h Handler) GetInstrumentationAgentDefinitionVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeInstrumentationAgentDefinition)])
+}
+
+// @Summary adds a new instrumentation agent definition.
+// @Description Add a new instrumentation agent definition to the Threeport database.
+// @ID add-v0-instrumentationAgentDefinition
+// @Accept json
+// @Produce json
+// @Param instrumentationAgentDefinition body api_v0.InstrumentationAgentDefinition true "InstrumentationAgentDefinition object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-definitions [POST]
+func (h Handler) AddInstrumentationAgentDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentDefinition
+	var instrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, instrumentationAgentDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&instrumentationAgentDefinition); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, instrumentationAgentDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingInstrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", instrumentationAgentDefinition.Name).First(&existingInstrumentationAgentDefinition)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&instrumentationAgentDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*instrumentationAgentDefinition.Reconciled {
+		notifPayload, err := instrumentationAgentDefinition.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationAgentDefinitionCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationAgentDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all instrumentation agent definitions.
+// @Description Get all instrumentation agent definitions from the Threeport database.
+// @ID get-v0-instrumentationAgentDefinitions
+// @Accept json
+// @Produce json
+// @Param name query string false "instrumentation agent definition search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-definitions [GET]
+func (h Handler) GetInstrumentationAgentDefinitions(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentDefinition
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.InstrumentationAgentDefinition
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.InstrumentationAgentDefinition{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.InstrumentationAgentDefinition{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a instrumentation agent definition.
+// @Description Get a particular instrumentation agent definition from the database.
+// @ID get-v0-instrumentationAgentDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-definitions/{id} [GET]
+func (h Handler) GetInstrumentationAgentDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentDefinition
+	instrumentationAgentDefinitionID := c.Param("id")
+	var instrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	if result := h.RequestDB(c).
+		First(&instrumentationAgentDefinition, instrumentationAgentDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationAgentDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing instrumentation agent definition.
+// @Description Update a instrumentation agent definition in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating instrumentation agent definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-instrumentationAgentDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationAgentDefinition body api_v0.InstrumentationAgentDefinition true "InstrumentationAgentDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-definitions/{id} [PATCH]
+func (h Handler) UpdateInstrumentationAgentDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentDefinition
+	instrumentationAgentDefinitionID := c.Param("id")
+	var existingInstrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	if result := h.RequestDB(c).First(&existingInstrumentationAgentDefinition, instrumentationAgentDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationAgentDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	if err := c.Bind(&updatedInstrumentationAgentDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingInstrumentationAgentDefinition).Updates(&updatedInstrumentationAgentDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingInstrumentationAgentDefinition.Reconciled {
+		notifPayload, err := existingInstrumentationAgentDefinition.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationAgentDefinitionUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationAgentDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing instrumentation agent definition by replacing the entire object.
+// @Description Replace a instrumentation agent definition in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating instrumentation agent definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-instrumentationAgentDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationAgentDefinition body api_v0.InstrumentationAgentDefinition true "InstrumentationAgentDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-definitions/{id} [PUT]
+func (h Handler) ReplaceInstrumentationAgentDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentDefinition
+	instrumentationAgentDefinitionID := c.Param("id")
+	var existingInstrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	if result := h.RequestDB(c).First(&existingInstrumentationAgentDefinition, instrumentationAgentDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationAgentDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	if err := c.Bind(&updatedInstrumentationAgentDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedInstrumentationAgentDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedInstrumentationAgentDefinition.ID = existingInstrumentationAgentDefinition.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedInstrumentationAgentDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingInstrumentationAgentDefinition, instrumentationAgentDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationAgentDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a instrumentation agent definition.
+// @Description Delete a instrumentation agent definition by ID from the database.
+// @ID delete-v0-instrumentationAgentDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-definitions/{id} [DELETE]
+func (h Handler) DeleteInstrumentationAgentDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentDefinition
+	instrumentationAgentDefinitionID := c.Param("id")
+	var instrumentationAgentDefinition api_v0.InstrumentationAgentDefinition
+	if result := h.RequestDB(c).Preload("InstrumentationAgentInstances").First(&instrumentationAgentDefinition, instrumentationAgentDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check to make sure no dependent instances exist for this definition
+	if len(instrumentationAgentDefinition.InstrumentationAgentInstances) != 0 {
+		err := errors.New("instrumentation agent definition has related instrumentation agent instances - cannot be deleted")
+		return apiserver_lib.ResponseStatus409(c, nil, err, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &instrumentationAgentDefinition); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if instrumentationAgentDefinition.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledInstrumentationAgentDefinition := api_v0.InstrumentationAgentDefinition{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&instrumentationAgentDefinition).Updates(&scheduledInstrumentationAgentDefinition); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := instrumentationAgentDefinition.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationAgentDefinitionDeleteSubject, *notifPayload)
+	} else {
+		if instrumentationAgentDefinition.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*instrumentationAgentDefinition.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&instrumentationAgentDefinition); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationAgentDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// InstrumentationAgentInstance
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetInstrumentationAgentInstanceVersions gets the supported versions for the instrumentation agent instance API.
+// @Description Get the supported API versions for instrumentation agent instances.
+// @ID instrumentationAgentInstance-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /instrumentation-agent-instances/versions [GET]
+func (h Handler) GetInstrumentationAgentInstanceVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeInstrumentationAgentInstance)])
+}
+
+// @Summary adds a new instrumentation agent instance.
+// @Description Add a new instrumentation agent instance to the Threeport database.
+// @ID add-v0-instrumentationAgentInstance
+// @Accept json
+// @Produce json
+// @Param instrumentationAgentInstance body api_v0.InstrumentationAgentInstance true "InstrumentationAgentInstance object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-instances [POST]
+func (h Handler) AddInstrumentationAgentInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentInstance
+	var instrumentationAgentInstance api_v0.InstrumentationAgentInstance
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, instrumentationAgentInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&instrumentationAgentInstance); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, instrumentationAgentInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingInstrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", instrumentationAgentInstance.Name).First(&existingInstrumentationAgentInstance)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&instrumentationAgentInstance); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*instrumentationAgentInstance.Reconciled {
+		notifPayload, err := instrumentationAgentInstance.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationAgentInstanceCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationAgentInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all instrumentation agent instances.
+// @Description Get all instrumentation agent instances from the Threeport database.
+// @ID get-v0-instrumentationAgentInstances
+// @Accept json
+// @Produce json
+// @Param name query string false "instrumentation agent instance search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-instances [GET]
+func (h Handler) GetInstrumentationAgentInstances(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentInstance
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.InstrumentationAgentInstance
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.InstrumentationAgentInstance{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.InstrumentationAgentInstance{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a instrumentation agent instance.
+// @Description Get a particular instrumentation agent instance from the database.
+// @ID get-v0-instrumentationAgentInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-instances/{id} [GET]
+func (h Handler) GetInstrumentationAgentInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentInstance
+	instrumentationAgentInstanceID := c.Param("id")
+	var instrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	if result := h.RequestDB(c).
+		First(&instrumentationAgentInstance, instrumentationAgentInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationAgentInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing instrumentation agent instance.
+// @Description Update a instrumentation agent instance in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating instrumentation agent instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-instrumentationAgentInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationAgentInstance body api_v0.InstrumentationAgentInstance true "InstrumentationAgentInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-instances/{id} [PATCH]
+func (h Handler) UpdateInstrumentationAgentInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentInstance
+	instrumentationAgentInstanceID := c.Param("id")
+	var existingInstrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	if result := h.RequestDB(c).First(&existingInstrumentationAgentInstance, instrumentationAgentInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationAgentInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	if err := c.Bind(&updatedInstrumentationAgentInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingInstrumentationAgentInstance).Updates(&updatedInstrumentationAgentInstance); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingInstrumentationAgentInstance.Reconciled {
+		notifPayload, err := existingInstrumentationAgentInstance.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationAgentInstanceUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationAgentInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing instrumentation agent instance by replacing the entire object.
+// @Description Replace a instrumentation agent instance in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating instrumentation agent instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-instrumentationAgentInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationAgentInstance body api_v0.InstrumentationAgentInstance true "InstrumentationAgentInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-instances/{id} [PUT]
+func (h Handler) ReplaceInstrumentationAgentInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentInstance
+	instrumentationAgentInstanceID := c.Param("id")
+	var existingInstrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	if result := h.RequestDB(c).First(&existingInstrumentationAgentInstance, instrumentationAgentInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationAgentInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	if err := c.Bind(&updatedInstrumentationAgentInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedInstrumentationAgentInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedInstrumentationAgentInstance.ID = existingInstrumentationAgentInstance.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedInstrumentationAgentInstance); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingInstrumentationAgentInstance, instrumentationAgentInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationAgentInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a instrumentation agent instance.
+// @Description Delete a instrumentation agent instance by ID from the database.
+// @ID delete-v0-instrumentationAgentInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-agent-instances/{id} [DELETE]
+func (h Handler) DeleteInstrumentationAgentInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationAgentInstance
+	instrumentationAgentInstanceID := c.Param("id")
+	var instrumentationAgentInstance api_v0.InstrumentationAgentInstance
+	if result := h.RequestDB(c).First(&instrumentationAgentInstance, instrumentationAgentInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &instrumentationAgentInstance); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if instrumentationAgentInstance.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledInstrumentationAgentInstance := api_v0.InstrumentationAgentInstance{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&instrumentationAgentInstance).Updates(&scheduledInstrumentationAgentInstance); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := instrumentationAgentInstance.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationAgentInstanceDeleteSubject, *notifPayload)
+	} else {
+		if instrumentationAgentInstance.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*instrumentationAgentInstance.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&instrumentationAgentInstance); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationAgentInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// InstrumentationBrowserRelayDefinition
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetInstrumentationBrowserRelayDefinitionVersions gets the supported versions for the instrumentation browser relay definition API.
+// @Description Get the supported API versions for instrumentation browser relay definitions.
+// @ID instrumentationBrowserRelayDefinition-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /instrumentation-browser-relay-definitions/versions [GET]
+func (h Handler) GetInstrumentationBrowserRelayDefinitionVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeInstrumentationBrowserRelayDefinition)])
+}
+
+// @Summary adds a new instrumentation browser relay definition.
+// @Description Add a new instrumentation browser relay definition to the Threeport database.
+// @ID add-v0-instrumentationBrowserRelayDefinition
+// @Accept json
+// @Produce json
+// @Param instrumentationBrowserRelayDefinition body api_v0.InstrumentationBrowserRelayDefinition true "InstrumentationBrowserRelayDefinition object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-definitions [POST]
+func (h Handler) AddInstrumentationBrowserRelayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayDefinition
+	var instrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, instrumentationBrowserRelayDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&instrumentationBrowserRelayDefinition); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, instrumentationBrowserRelayDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingInstrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", instrumentationBrowserRelayDefinition.Name).First(&existingInstrumentationBrowserRelayDefinition)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&instrumentationBrowserRelayDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*instrumentationBrowserRelayDefinition.Reconciled {
+		notifPayload, err := instrumentationBrowserRelayDefinition.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationBrowserRelayDefinitionCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationBrowserRelayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all instrumentation browser relay definitions.
+// @Description Get all instrumentation browser relay definitions from the Threeport database.
+// @ID get-v0-instrumentationBrowserRelayDefinitions
+// @Accept json
+// @Produce json
+// @Param name query string false "instrumentation browser relay definition search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-definitions [GET]
+func (h Handler) GetInstrumentationBrowserRelayDefinitions(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayDefinition
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.InstrumentationBrowserRelayDefinition
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.InstrumentationBrowserRelayDefinition{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.InstrumentationBrowserRelayDefinition{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a instrumentation browser relay definition.
+// @Description Get a particular instrumentation browser relay definition from the database.
+// @ID get-v0-instrumentationBrowserRelayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-definitions/{id} [GET]
+func (h Handler) GetInstrumentationBrowserRelayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayDefinition
+	instrumentationBrowserRelayDefinitionID := c.Param("id")
+	var instrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	if result := h.RequestDB(c).
+		First(&instrumentationBrowserRelayDefinition, instrumentationBrowserRelayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationBrowserRelayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing instrumentation browser relay definition.
+// @Description Update a instrumentation browser relay definition in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating instrumentation browser relay definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-instrumentationBrowserRelayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationBrowserRelayDefinition body api_v0.InstrumentationBrowserRelayDefinition true "InstrumentationBrowserRelayDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-definitions/{id} [PATCH]
+func (h Handler) UpdateInstrumentationBrowserRelayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayDefinition
+	instrumentationBrowserRelayDefinitionID := c.Param("id")
+	var existingInstrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	if result := h.RequestDB(c).First(&existingInstrumentationBrowserRelayDefinition, instrumentationBrowserRelayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationBrowserRelayDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	if err := c.Bind(&updatedInstrumentationBrowserRelayDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingInstrumentationBrowserRelayDefinition).Updates(&updatedInstrumentationBrowserRelayDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingInstrumentationBrowserRelayDefinition.Reconciled {
+		notifPayload, err := existingInstrumentationBrowserRelayDefinition.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationBrowserRelayDefinitionUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationBrowserRelayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing instrumentation browser relay definition by replacing the entire object.
+// @Description Replace a instrumentation browser relay definition in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating instrumentation browser relay definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-instrumentationBrowserRelayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationBrowserRelayDefinition body api_v0.InstrumentationBrowserRelayDefinition true "InstrumentationBrowserRelayDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-definitions/{id} [PUT]
+func (h Handler) ReplaceInstrumentationBrowserRelayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayDefinition
+	instrumentationBrowserRelayDefinitionID := c.Param("id")
+	var existingInstrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	if result := h.RequestDB(c).First(&existingInstrumentationBrowserRelayDefinition, instrumentationBrowserRelayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationBrowserRelayDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	if err := c.Bind(&updatedInstrumentationBrowserRelayDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedInstrumentationBrowserRelayDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedInstrumentationBrowserRelayDefinition.ID = existingInstrumentationBrowserRelayDefinition.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedInstrumentationBrowserRelayDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingInstrumentationBrowserRelayDefinition, instrumentationBrowserRelayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationBrowserRelayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a instrumentation browser relay definition.
+// @Description Delete a instrumentation browser relay definition by ID from the database.
+// @ID delete-v0-instrumentationBrowserRelayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-definitions/{id} [DELETE]
+func (h Handler) DeleteInstrumentationBrowserRelayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayDefinition
+	instrumentationBrowserRelayDefinitionID := c.Param("id")
+	var instrumentationBrowserRelayDefinition api_v0.InstrumentationBrowserRelayDefinition
+	if result := h.RequestDB(c).Preload("InstrumentationBrowserRelayInstances").First(&instrumentationBrowserRelayDefinition, instrumentationBrowserRelayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check to make sure no dependent instances exist for this definition
+	if len(instrumentationBrowserRelayDefinition.InstrumentationBrowserRelayInstances) != 0 {
+		err := errors.New("instrumentation browser relay definition has related instrumentation browser relay instances - cannot be deleted")
+		return apiserver_lib.ResponseStatus409(c, nil, err, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &instrumentationBrowserRelayDefinition); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if instrumentationBrowserRelayDefinition.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledInstrumentationBrowserRelayDefinition := api_v0.InstrumentationBrowserRelayDefinition{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&instrumentationBrowserRelayDefinition).Updates(&scheduledInstrumentationBrowserRelayDefinition); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := instrumentationBrowserRelayDefinition.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationBrowserRelayDefinitionDeleteSubject, *notifPayload)
+	} else {
+		if instrumentationBrowserRelayDefinition.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*instrumentationBrowserRelayDefinition.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&instrumentationBrowserRelayDefinition); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationBrowserRelayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// InstrumentationBrowserRelayInstance
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetInstrumentationBrowserRelayInstanceVersions gets the supported versions for the instrumentation browser relay instance API.
+// @Description Get the supported API versions for instrumentation browser relay instances.
+// @ID instrumentationBrowserRelayInstance-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /instrumentation-browser-relay-instances/versions [GET]
+func (h Handler) GetInstrumentationBrowserRelayInstanceVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeInstrumentationBrowserRelayInstance)])
+}
+
+// @Summary adds a new instrumentation browser relay instance.
+// @Description Add a new instrumentation browser relay instance to the Threeport database.
+// @ID add-v0-instrumentationBrowserRelayInstance
+// @Accept json
+// @Produce json
+// @Param instrumentationBrowserRelayInstance body api_v0.InstrumentationBrowserRelayInstance true "InstrumentationBrowserRelayInstance object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-instances [POST]
+func (h Handler) AddInstrumentationBrowserRelayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayInstance
+	var instrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, instrumentationBrowserRelayInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&instrumentationBrowserRelayInstance); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, instrumentationBrowserRelayInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingInstrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", instrumentationBrowserRelayInstance.Name).First(&existingInstrumentationBrowserRelayInstance)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&instrumentationBrowserRelayInstance); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*instrumentationBrowserRelayInstance.Reconciled {
+		notifPayload, err := instrumentationBrowserRelayInstance.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationBrowserRelayInstanceCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationBrowserRelayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all instrumentation browser relay instances.
+// @Description Get all instrumentation browser relay instances from the Threeport database.
+// @ID get-v0-instrumentationBrowserRelayInstances
+// @Accept json
+// @Produce json
+// @Param name query string false "instrumentation browser relay instance search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-instances [GET]
+func (h Handler) GetInstrumentationBrowserRelayInstances(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayInstance
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.InstrumentationBrowserRelayInstance
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.InstrumentationBrowserRelayInstance{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.InstrumentationBrowserRelayInstance{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a instrumentation browser relay instance.
+// @Description Get a particular instrumentation browser relay instance from the database.
+// @ID get-v0-instrumentationBrowserRelayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-instances/{id} [GET]
+func (h Handler) GetInstrumentationBrowserRelayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayInstance
+	instrumentationBrowserRelayInstanceID := c.Param("id")
+	var instrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	if result := h.RequestDB(c).
+		First(&instrumentationBrowserRelayInstance, instrumentationBrowserRelayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationBrowserRelayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing instrumentation browser relay instance.
+// @Description Update a instrumentation browser relay instance in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating instrumentation browser relay instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-instrumentationBrowserRelayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationBrowserRelayInstance body api_v0.InstrumentationBrowserRelayInstance true "InstrumentationBrowserRelayInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-instances/{id} [PATCH]
+func (h Handler) UpdateInstrumentationBrowserRelayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayInstance
+	instrumentationBrowserRelayInstanceID := c.Param("id")
+	var existingInstrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	if result := h.RequestDB(c).First(&existingInstrumentationBrowserRelayInstance, instrumentationBrowserRelayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationBrowserRelayInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	if err := c.Bind(&updatedInstrumentationBrowserRelayInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingInstrumentationBrowserRelayInstance).Updates(&updatedInstrumentationBrowserRelayInstance); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingInstrumentationBrowserRelayInstance.Reconciled {
+		notifPayload, err := existingInstrumentationBrowserRelayInstance.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationBrowserRelayInstanceUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationBrowserRelayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing instrumentation browser relay instance by replacing the entire object.
+// @Description Replace a instrumentation browser relay instance in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating instrumentation browser relay instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-instrumentationBrowserRelayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationBrowserRelayInstance body api_v0.InstrumentationBrowserRelayInstance true "InstrumentationBrowserRelayInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-instances/{id} [PUT]
+func (h Handler) ReplaceInstrumentationBrowserRelayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayInstance
+	instrumentationBrowserRelayInstanceID := c.Param("id")
+	var existingInstrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	if result := h.RequestDB(c).First(&existingInstrumentationBrowserRelayInstance, instrumentationBrowserRelayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationBrowserRelayInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	if err := c.Bind(&updatedInstrumentationBrowserRelayInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedInstrumentationBrowserRelayInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedInstrumentationBrowserRelayInstance.ID = existingInstrumentationBrowserRelayInstance.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedInstrumentationBrowserRelayInstance); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingInstrumentationBrowserRelayInstance, instrumentationBrowserRelayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationBrowserRelayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a instrumentation browser relay instance.
+// @Description Delete a instrumentation browser relay instance by ID from the database.
+// @ID delete-v0-instrumentationBrowserRelayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-browser-relay-instances/{id} [DELETE]
+func (h Handler) DeleteInstrumentationBrowserRelayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationBrowserRelayInstance
+	instrumentationBrowserRelayInstanceID := c.Param("id")
+	var instrumentationBrowserRelayInstance api_v0.InstrumentationBrowserRelayInstance
+	if result := h.RequestDB(c).First(&instrumentationBrowserRelayInstance, instrumentationBrowserRelayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &instrumentationBrowserRelayInstance); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if instrumentationBrowserRelayInstance.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledInstrumentationBrowserRelayInstance := api_v0.InstrumentationBrowserRelayInstance{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&instrumentationBrowserRelayInstance).Updates(&scheduledInstrumentationBrowserRelayInstance); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := instrumentationBrowserRelayInstance.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationBrowserRelayInstanceDeleteSubject, *notifPayload)
+	} else {
+		if instrumentationBrowserRelayInstance.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*instrumentationBrowserRelayInstance.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&instrumentationBrowserRelayInstance); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationBrowserRelayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// InstrumentationGatewayDefinition
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetInstrumentationGatewayDefinitionVersions gets the supported versions for the instrumentation gateway definition API.
+// @Description Get the supported API versions for instrumentation gateway definitions.
+// @ID instrumentationGatewayDefinition-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /instrumentation-gateway-definitions/versions [GET]
+func (h Handler) GetInstrumentationGatewayDefinitionVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeInstrumentationGatewayDefinition)])
+}
+
+// @Summary adds a new instrumentation gateway definition.
+// @Description Add a new instrumentation gateway definition to the Threeport database.
+// @ID add-v0-instrumentationGatewayDefinition
+// @Accept json
+// @Produce json
+// @Param instrumentationGatewayDefinition body api_v0.InstrumentationGatewayDefinition true "InstrumentationGatewayDefinition object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-definitions [POST]
+func (h Handler) AddInstrumentationGatewayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayDefinition
+	var instrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, instrumentationGatewayDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&instrumentationGatewayDefinition); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, instrumentationGatewayDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingInstrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", instrumentationGatewayDefinition.Name).First(&existingInstrumentationGatewayDefinition)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&instrumentationGatewayDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*instrumentationGatewayDefinition.Reconciled {
+		notifPayload, err := instrumentationGatewayDefinition.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationGatewayDefinitionCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationGatewayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all instrumentation gateway definitions.
+// @Description Get all instrumentation gateway definitions from the Threeport database.
+// @ID get-v0-instrumentationGatewayDefinitions
+// @Accept json
+// @Produce json
+// @Param name query string false "instrumentation gateway definition search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-definitions [GET]
+func (h Handler) GetInstrumentationGatewayDefinitions(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayDefinition
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.InstrumentationGatewayDefinition
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.InstrumentationGatewayDefinition{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.InstrumentationGatewayDefinition{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a instrumentation gateway definition.
+// @Description Get a particular instrumentation gateway definition from the database.
+// @ID get-v0-instrumentationGatewayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-definitions/{id} [GET]
+func (h Handler) GetInstrumentationGatewayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayDefinition
+	instrumentationGatewayDefinitionID := c.Param("id")
+	var instrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	if result := h.RequestDB(c).
+		First(&instrumentationGatewayDefinition, instrumentationGatewayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationGatewayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing instrumentation gateway definition.
+// @Description Update a instrumentation gateway definition in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating instrumentation gateway definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-instrumentationGatewayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationGatewayDefinition body api_v0.InstrumentationGatewayDefinition true "InstrumentationGatewayDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-definitions/{id} [PATCH]
+func (h Handler) UpdateInstrumentationGatewayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayDefinition
+	instrumentationGatewayDefinitionID := c.Param("id")
+	var existingInstrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	if result := h.RequestDB(c).First(&existingInstrumentationGatewayDefinition, instrumentationGatewayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationGatewayDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	if err := c.Bind(&updatedInstrumentationGatewayDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingInstrumentationGatewayDefinition).Updates(&updatedInstrumentationGatewayDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingInstrumentationGatewayDefinition.Reconciled {
+		notifPayload, err := existingInstrumentationGatewayDefinition.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationGatewayDefinitionUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationGatewayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing instrumentation gateway definition by replacing the entire object.
+// @Description Replace a instrumentation gateway definition in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating instrumentation gateway definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-instrumentationGatewayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationGatewayDefinition body api_v0.InstrumentationGatewayDefinition true "InstrumentationGatewayDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-definitions/{id} [PUT]
+func (h Handler) ReplaceInstrumentationGatewayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayDefinition
+	instrumentationGatewayDefinitionID := c.Param("id")
+	var existingInstrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	if result := h.RequestDB(c).First(&existingInstrumentationGatewayDefinition, instrumentationGatewayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationGatewayDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	if err := c.Bind(&updatedInstrumentationGatewayDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedInstrumentationGatewayDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedInstrumentationGatewayDefinition.ID = existingInstrumentationGatewayDefinition.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedInstrumentationGatewayDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingInstrumentationGatewayDefinition, instrumentationGatewayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationGatewayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a instrumentation gateway definition.
+// @Description Delete a instrumentation gateway definition by ID from the database.
+// @ID delete-v0-instrumentationGatewayDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-definitions/{id} [DELETE]
+func (h Handler) DeleteInstrumentationGatewayDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayDefinition
+	instrumentationGatewayDefinitionID := c.Param("id")
+	var instrumentationGatewayDefinition api_v0.InstrumentationGatewayDefinition
+	if result := h.RequestDB(c).Preload("InstrumentationGatewayInstances").First(&instrumentationGatewayDefinition, instrumentationGatewayDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check to make sure no dependent instances exist for this definition
+	if len(instrumentationGatewayDefinition.InstrumentationGatewayInstances) != 0 {
+		err := errors.New("instrumentation gateway definition has related instrumentation gateway instances - cannot be deleted")
+		return apiserver_lib.ResponseStatus409(c, nil, err, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &instrumentationGatewayDefinition); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if instrumentationGatewayDefinition.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledInstrumentationGatewayDefinition := api_v0.InstrumentationGatewayDefinition{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&instrumentationGatewayDefinition).Updates(&scheduledInstrumentationGatewayDefinition); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := instrumentationGatewayDefinition.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationGatewayDefinitionDeleteSubject, *notifPayload)
+	} else {
+		if instrumentationGatewayDefinition.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*instrumentationGatewayDefinition.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&instrumentationGatewayDefinition); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationGatewayDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// InstrumentationGatewayInstance
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetInstrumentationGatewayInstanceVersions gets the supported versions for the instrumentation gateway instance API.
+// @Description Get the supported API versions for instrumentation gateway instances.
+// @ID instrumentationGatewayInstance-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /instrumentation-gateway-instances/versions [GET]
+func (h Handler) GetInstrumentationGatewayInstanceVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeInstrumentationGatewayInstance)])
+}
+
+// @Summary adds a new instrumentation gateway instance.
+// @Description Add a new instrumentation gateway instance to the Threeport database.
+// @ID add-v0-instrumentationGatewayInstance
+// @Accept json
+// @Produce json
+// @Param instrumentationGatewayInstance body api_v0.InstrumentationGatewayInstance true "InstrumentationGatewayInstance object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-instances [POST]
+func (h Handler) AddInstrumentationGatewayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayInstance
+	var instrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, instrumentationGatewayInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&instrumentationGatewayInstance); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, instrumentationGatewayInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingInstrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", instrumentationGatewayInstance.Name).First(&existingInstrumentationGatewayInstance)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&instrumentationGatewayInstance); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*instrumentationGatewayInstance.Reconciled {
+		notifPayload, err := instrumentationGatewayInstance.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationGatewayInstanceCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationGatewayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all instrumentation gateway instances.
+// @Description Get all instrumentation gateway instances from the Threeport database.
+// @ID get-v0-instrumentationGatewayInstances
+// @Accept json
+// @Produce json
+// @Param name query string false "instrumentation gateway instance search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-instances [GET]
+func (h Handler) GetInstrumentationGatewayInstances(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayInstance
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.InstrumentationGatewayInstance
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.InstrumentationGatewayInstance{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.InstrumentationGatewayInstance{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a instrumentation gateway instance.
+// @Description Get a particular instrumentation gateway instance from the database.
+// @ID get-v0-instrumentationGatewayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-instances/{id} [GET]
+func (h Handler) GetInstrumentationGatewayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayInstance
+	instrumentationGatewayInstanceID := c.Param("id")
+	var instrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	if result := h.RequestDB(c).
+		First(&instrumentationGatewayInstance, instrumentationGatewayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationGatewayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing instrumentation gateway instance.
+// @Description Update a instrumentation gateway instance in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating instrumentation gateway instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-instrumentationGatewayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationGatewayInstance body api_v0.InstrumentationGatewayInstance true "InstrumentationGatewayInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-instances/{id} [PATCH]
+func (h Handler) UpdateInstrumentationGatewayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayInstance
+	instrumentationGatewayInstanceID := c.Param("id")
+	var existingInstrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	if result := h.RequestDB(c).First(&existingInstrumentationGatewayInstance, instrumentationGatewayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationGatewayInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	if err := c.Bind(&updatedInstrumentationGatewayInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingInstrumentationGatewayInstance).Updates(&updatedInstrumentationGatewayInstance); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingInstrumentationGatewayInstance.Reconciled {
+		notifPayload, err := existingInstrumentationGatewayInstance.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationGatewayInstanceUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationGatewayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing instrumentation gateway instance by replacing the entire object.
+// @Description Replace a instrumentation gateway instance in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating instrumentation gateway instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-instrumentationGatewayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param instrumentationGatewayInstance body api_v0.InstrumentationGatewayInstance true "InstrumentationGatewayInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-instances/{id} [PUT]
+func (h Handler) ReplaceInstrumentationGatewayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayInstance
+	instrumentationGatewayInstanceID := c.Param("id")
+	var existingInstrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	if result := h.RequestDB(c).First(&existingInstrumentationGatewayInstance, instrumentationGatewayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingInstrumentationGatewayInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedInstrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	if err := c.Bind(&updatedInstrumentationGatewayInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedInstrumentationGatewayInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedInstrumentationGatewayInstance.ID = existingInstrumentationGatewayInstance.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedInstrumentationGatewayInstance); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingInstrumentationGatewayInstance, instrumentationGatewayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingInstrumentationGatewayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a instrumentation gateway instance.
+// @Description Delete a instrumentation gateway instance by ID from the database.
+// @ID delete-v0-instrumentationGatewayInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/instrumentation-gateway-instances/{id} [DELETE]
+func (h Handler) DeleteInstrumentationGatewayInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeInstrumentationGatewayInstance
+	instrumentationGatewayInstanceID := c.Param("id")
+	var instrumentationGatewayInstance api_v0.InstrumentationGatewayInstance
+	if result := h.RequestDB(c).First(&instrumentationGatewayInstance, instrumentationGatewayInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &instrumentationGatewayInstance); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if instrumentationGatewayInstance.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledInstrumentationGatewayInstance := api_v0.InstrumentationGatewayInstance{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&instrumentationGatewayInstance).Updates(&scheduledInstrumentationGatewayInstance); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := instrumentationGatewayInstance.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.InstrumentationGatewayInstanceDeleteSubject, *notifPayload)
+	} else {
+		if instrumentationGatewayInstance.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*instrumentationGatewayInstance.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&instrumentationGatewayInstance); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		instrumentationGatewayInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // LoggingDefinition
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -4327,6 +7567,1086 @@ func (h Handler) DeleteObservabilityStackInstance(c echo.Context) error {
 	response, err := apiserver_lib.CreateResponse(
 		apiserver_lib.SingleObjectMeta(),
 		observabilityStackInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TracingDefinition
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetTracingDefinitionVersions gets the supported versions for the tracing definition API.
+// @Description Get the supported API versions for tracing definitions.
+// @ID tracingDefinition-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /tracing-definitions/versions [GET]
+func (h Handler) GetTracingDefinitionVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeTracingDefinition)])
+}
+
+// @Summary adds a new tracing definition.
+// @Description Add a new tracing definition to the Threeport database.
+// @ID add-v0-tracingDefinition
+// @Accept json
+// @Produce json
+// @Param tracingDefinition body api_v0.TracingDefinition true "TracingDefinition object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-definitions [POST]
+func (h Handler) AddTracingDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingDefinition
+	var tracingDefinition api_v0.TracingDefinition
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, tracingDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&tracingDefinition); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, tracingDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingTracingDefinition api_v0.TracingDefinition
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", tracingDefinition.Name).First(&existingTracingDefinition)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&tracingDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*tracingDefinition.Reconciled {
+		notifPayload, err := tracingDefinition.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.TracingDefinitionCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		tracingDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all tracing definitions.
+// @Description Get all tracing definitions from the Threeport database.
+// @ID get-v0-tracingDefinitions
+// @Accept json
+// @Produce json
+// @Param name query string false "tracing definition search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-definitions [GET]
+func (h Handler) GetTracingDefinitions(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingDefinition
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.TracingDefinition
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.TracingDefinition{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.TracingDefinition{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a tracing definition.
+// @Description Get a particular tracing definition from the database.
+// @ID get-v0-tracingDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-definitions/{id} [GET]
+func (h Handler) GetTracingDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingDefinition
+	tracingDefinitionID := c.Param("id")
+	var tracingDefinition api_v0.TracingDefinition
+	if result := h.RequestDB(c).
+		First(&tracingDefinition, tracingDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		tracingDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing tracing definition.
+// @Description Update a tracing definition in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating tracing definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-tracingDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param tracingDefinition body api_v0.TracingDefinition true "TracingDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-definitions/{id} [PATCH]
+func (h Handler) UpdateTracingDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingDefinition
+	tracingDefinitionID := c.Param("id")
+	var existingTracingDefinition api_v0.TracingDefinition
+	if result := h.RequestDB(c).First(&existingTracingDefinition, tracingDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingTracingDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedTracingDefinition api_v0.TracingDefinition
+	if err := c.Bind(&updatedTracingDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingTracingDefinition).Updates(&updatedTracingDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingTracingDefinition.Reconciled {
+		notifPayload, err := existingTracingDefinition.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.TracingDefinitionUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingTracingDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing tracing definition by replacing the entire object.
+// @Description Replace a tracing definition in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating tracing definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-tracingDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param tracingDefinition body api_v0.TracingDefinition true "TracingDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-definitions/{id} [PUT]
+func (h Handler) ReplaceTracingDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingDefinition
+	tracingDefinitionID := c.Param("id")
+	var existingTracingDefinition api_v0.TracingDefinition
+	if result := h.RequestDB(c).First(&existingTracingDefinition, tracingDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingTracingDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedTracingDefinition api_v0.TracingDefinition
+	if err := c.Bind(&updatedTracingDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedTracingDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedTracingDefinition.ID = existingTracingDefinition.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedTracingDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingTracingDefinition, tracingDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingTracingDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a tracing definition.
+// @Description Delete a tracing definition by ID from the database.
+// @ID delete-v0-tracingDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-definitions/{id} [DELETE]
+func (h Handler) DeleteTracingDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingDefinition
+	tracingDefinitionID := c.Param("id")
+	var tracingDefinition api_v0.TracingDefinition
+	if result := h.RequestDB(c).Preload("TracingInstances").First(&tracingDefinition, tracingDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check to make sure no dependent instances exist for this definition
+	if len(tracingDefinition.TracingInstances) != 0 {
+		err := errors.New("tracing definition has related tracing instances - cannot be deleted")
+		return apiserver_lib.ResponseStatus409(c, nil, err, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &tracingDefinition); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if tracingDefinition.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledTracingDefinition := api_v0.TracingDefinition{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&tracingDefinition).Updates(&scheduledTracingDefinition); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := tracingDefinition.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.TracingDefinitionDeleteSubject, *notifPayload)
+	} else {
+		if tracingDefinition.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*tracingDefinition.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&tracingDefinition); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		tracingDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TracingInstance
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetTracingInstanceVersions gets the supported versions for the tracing instance API.
+// @Description Get the supported API versions for tracing instances.
+// @ID tracingInstance-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /tracing-instances/versions [GET]
+func (h Handler) GetTracingInstanceVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeTracingInstance)])
+}
+
+// @Summary adds a new tracing instance.
+// @Description Add a new tracing instance to the Threeport database.
+// @ID add-v0-tracingInstance
+// @Accept json
+// @Produce json
+// @Param tracingInstance body api_v0.TracingInstance true "TracingInstance object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-instances [POST]
+func (h Handler) AddTracingInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingInstance
+	var tracingInstance api_v0.TracingInstance
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, tracingInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&tracingInstance); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, tracingInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingTracingInstance api_v0.TracingInstance
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", tracingInstance.Name).First(&existingTracingInstance)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&tracingInstance); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*tracingInstance.Reconciled {
+		notifPayload, err := tracingInstance.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.TracingInstanceCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		tracingInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all tracing instances.
+// @Description Get all tracing instances from the Threeport database.
+// @ID get-v0-tracingInstances
+// @Accept json
+// @Produce json
+// @Param name query string false "tracing instance search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-instances [GET]
+func (h Handler) GetTracingInstances(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingInstance
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.TracingInstance
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.TracingInstance{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.TracingInstance{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a tracing instance.
+// @Description Get a particular tracing instance from the database.
+// @ID get-v0-tracingInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-instances/{id} [GET]
+func (h Handler) GetTracingInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingInstance
+	tracingInstanceID := c.Param("id")
+	var tracingInstance api_v0.TracingInstance
+	if result := h.RequestDB(c).
+		First(&tracingInstance, tracingInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		tracingInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing tracing instance.
+// @Description Update a tracing instance in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating tracing instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-tracingInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param tracingInstance body api_v0.TracingInstance true "TracingInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-instances/{id} [PATCH]
+func (h Handler) UpdateTracingInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingInstance
+	tracingInstanceID := c.Param("id")
+	var existingTracingInstance api_v0.TracingInstance
+	if result := h.RequestDB(c).First(&existingTracingInstance, tracingInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingTracingInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedTracingInstance api_v0.TracingInstance
+	if err := c.Bind(&updatedTracingInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingTracingInstance).Updates(&updatedTracingInstance); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingTracingInstance.Reconciled {
+		notifPayload, err := existingTracingInstance.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.TracingInstanceUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingTracingInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing tracing instance by replacing the entire object.
+// @Description Replace a tracing instance in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating tracing instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-tracingInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param tracingInstance body api_v0.TracingInstance true "TracingInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-instances/{id} [PUT]
+func (h Handler) ReplaceTracingInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingInstance
+	tracingInstanceID := c.Param("id")
+	var existingTracingInstance api_v0.TracingInstance
+	if result := h.RequestDB(c).First(&existingTracingInstance, tracingInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingTracingInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedTracingInstance api_v0.TracingInstance
+	if err := c.Bind(&updatedTracingInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedTracingInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedTracingInstance.ID = existingTracingInstance.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedTracingInstance); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingTracingInstance, tracingInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingTracingInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a tracing instance.
+// @Description Delete a tracing instance by ID from the database.
+// @ID delete-v0-tracingInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/tracing-instances/{id} [DELETE]
+func (h Handler) DeleteTracingInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeTracingInstance
+	tracingInstanceID := c.Param("id")
+	var tracingInstance api_v0.TracingInstance
+	if result := h.RequestDB(c).First(&tracingInstance, tracingInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &tracingInstance); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if tracingInstance.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledTracingInstance := api_v0.TracingInstance{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&tracingInstance).Updates(&scheduledTracingInstance); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := tracingInstance.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.TracingInstanceDeleteSubject, *notifPayload)
+	} else {
+		if tracingInstance.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*tracingInstance.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&tracingInstance); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		tracingInstance,
 		objectType,
 	)
 	if err != nil {

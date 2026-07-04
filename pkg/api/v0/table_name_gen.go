@@ -112,6 +112,36 @@ func (Instance) TableName() string {
 	return "v0_instances"
 }
 
+// TableName sets the name of the table for the InstrumentationAgentDefinition objects in the database.
+func (InstrumentationAgentDefinition) TableName() string {
+	return "v0_instrumentation_agent_definitions"
+}
+
+// TableName sets the name of the table for the InstrumentationAgentInstance objects in the database.
+func (InstrumentationAgentInstance) TableName() string {
+	return "v0_instrumentation_agent_instances"
+}
+
+// TableName sets the name of the table for the InstrumentationBrowserRelayDefinition objects in the database.
+func (InstrumentationBrowserRelayDefinition) TableName() string {
+	return "v0_instrumentation_browser_relay_definitions"
+}
+
+// TableName sets the name of the table for the InstrumentationBrowserRelayInstance objects in the database.
+func (InstrumentationBrowserRelayInstance) TableName() string {
+	return "v0_instrumentation_browser_relay_instances"
+}
+
+// TableName sets the name of the table for the InstrumentationGatewayDefinition objects in the database.
+func (InstrumentationGatewayDefinition) TableName() string {
+	return "v0_instrumentation_gateway_definitions"
+}
+
+// TableName sets the name of the table for the InstrumentationGatewayInstance objects in the database.
+func (InstrumentationGatewayInstance) TableName() string {
+	return "v0_instrumentation_gateway_instances"
+}
+
 // TableName sets the name of the table for the ControlPlaneDefinition objects in the database.
 func (ControlPlaneDefinition) TableName() string {
 	return "v0_control_plane_definitions"
@@ -280,4 +310,14 @@ func (TerraformInstance) TableName() string {
 // TableName sets the name of the table for the Tier objects in the database.
 func (Tier) TableName() string {
 	return "v0_tiers"
+}
+
+// TableName sets the name of the table for the TracingDefinition objects in the database.
+func (TracingDefinition) TableName() string {
+	return "v0_tracing_definitions"
+}
+
+// TableName sets the name of the table for the TracingInstance objects in the database.
+func (TracingInstance) TableName() string {
+	return "v0_tracing_instances"
 }

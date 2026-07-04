@@ -264,6 +264,38 @@ ApiObjectGroups:
       Versions:
         - v0
       Reconcilable: true
+    - Name: TracingDefinition
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: TracingInstance
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: InstrumentationAgentDefinition
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: InstrumentationAgentInstance
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: InstrumentationGatewayDefinition
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: InstrumentationGatewayInstance
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: InstrumentationBrowserRelayDefinition
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: InstrumentationBrowserRelayInstance
+      Versions:
+        - v0
+      Reconcilable: true
 - Name: terraform
   DockerfileTarget: release-terraform
   Objects:

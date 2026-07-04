@@ -13,6 +13,1788 @@ import (
 	"net/http"
 )
 
+// GetInstrumentationAgentDefinitions fetches all instrumentation agent definitions.
+func GetInstrumentationAgentDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.InstrumentationAgentDefinition, error) {
+	var instrumentationAgentDefinitions []v0.InstrumentationAgentDefinition
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationAgentDefinitions)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathInstrumentationAgentDefinitions, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &instrumentationAgentDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &instrumentationAgentDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentDefinitions, nil
+}
+
+// GetInstrumentationAgentDefinitionByID fetches a instrumentation agent definition by ID.
+func GetInstrumentationAgentDefinitionByID(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationAgentDefinition, error) {
+	var instrumentationAgentDefinition v0.InstrumentationAgentDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentDefinitions, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationAgentDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationAgentDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentDefinition, nil
+}
+
+// GetInstrumentationAgentDefinitionsByQueryString fetches instrumentation agent definitions by provided query string.
+func GetInstrumentationAgentDefinitionsByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.InstrumentationAgentDefinition, error) {
+	var instrumentationAgentDefinitions []v0.InstrumentationAgentDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathInstrumentationAgentDefinitions, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationAgentDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &instrumentationAgentDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentDefinitions, nil
+}
+
+// GetInstrumentationAgentDefinitionByName fetches a instrumentation agent definition by name.
+func GetInstrumentationAgentDefinitionByName(apiClient *http.Client, apiAddr, name string) (*v0.InstrumentationAgentDefinition, error) {
+	var instrumentationAgentDefinitions []v0.InstrumentationAgentDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathInstrumentationAgentDefinitions, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.InstrumentationAgentDefinition{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.InstrumentationAgentDefinition{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(instrumentationAgentDefinitions) < 1:
+		return &v0.InstrumentationAgentDefinition{}, client_lib.ErrObjectNotFound
+	case len(instrumentationAgentDefinitions) > 1:
+		return &v0.InstrumentationAgentDefinition{}, fmt.Errorf("more than one instrumentation agent definition with name %s returned", name)
+	}
+
+	return &instrumentationAgentDefinitions[0], nil
+}
+
+// CreateInstrumentationAgentDefinition creates a new instrumentation agent definition.
+func CreateInstrumentationAgentDefinition(apiClient *http.Client, apiAddr string, instrumentationAgentDefinition *v0.InstrumentationAgentDefinition) (*v0.InstrumentationAgentDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationAgentDefinition)
+	jsonInstrumentationAgentDefinition, err := util.MarshalObject(instrumentationAgentDefinition)
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationAgentDefinitions),
+		http.MethodPost,
+		bytes.NewBuffer(jsonInstrumentationAgentDefinition),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return instrumentationAgentDefinition, nil
+}
+
+// UpdateInstrumentationAgentDefinition updates a instrumentation agent definition with a PATCH request.
+func UpdateInstrumentationAgentDefinition(apiClient *http.Client, apiAddr string, instrumentationAgentDefinition *v0.InstrumentationAgentDefinition) (*v0.InstrumentationAgentDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationAgentDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationAgentDefinitionID := *instrumentationAgentDefinition.ID
+	payloadInstrumentationAgentDefinition := *instrumentationAgentDefinition
+	payloadInstrumentationAgentDefinition.ID = nil
+	payloadInstrumentationAgentDefinition.CreatedAt = nil
+	payloadInstrumentationAgentDefinition.UpdatedAt = nil
+
+	jsonInstrumentationAgentDefinition, err := util.MarshalObject(payloadInstrumentationAgentDefinition)
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentDefinitions, instrumentationAgentDefinitionID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonInstrumentationAgentDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationAgentDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationAgentDefinition.ID = &instrumentationAgentDefinitionID
+	return &payloadInstrumentationAgentDefinition, nil
+}
+
+// ReplaceInstrumentationAgentDefinition updates a instrumentation agent definition with a PUT request.
+func ReplaceInstrumentationAgentDefinition(apiClient *http.Client, apiAddr string, instrumentationAgentDefinition *v0.InstrumentationAgentDefinition) (*v0.InstrumentationAgentDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationAgentDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationAgentDefinitionID := *instrumentationAgentDefinition.ID
+	payloadInstrumentationAgentDefinition := *instrumentationAgentDefinition
+	payloadInstrumentationAgentDefinition.ID = nil
+	payloadInstrumentationAgentDefinition.CreatedAt = nil
+	payloadInstrumentationAgentDefinition.UpdatedAt = nil
+
+	jsonInstrumentationAgentDefinition, err := util.MarshalObject(payloadInstrumentationAgentDefinition)
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentDefinitions, instrumentationAgentDefinitionID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonInstrumentationAgentDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationAgentDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationAgentDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationAgentDefinition.ID = &instrumentationAgentDefinitionID
+	return &payloadInstrumentationAgentDefinition, nil
+}
+
+// DeleteInstrumentationAgentDefinition deletes a instrumentation agent definition by ID.
+func DeleteInstrumentationAgentDefinition(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationAgentDefinition, error) {
+	var instrumentationAgentDefinition v0.InstrumentationAgentDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentDefinitions, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationAgentDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationAgentDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentDefinition, nil
+}
+
+// GetInstrumentationAgentInstances fetches all instrumentation agent instances.
+func GetInstrumentationAgentInstances(apiClient *http.Client, apiAddr string) (*[]v0.InstrumentationAgentInstance, error) {
+	var instrumentationAgentInstances []v0.InstrumentationAgentInstance
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationAgentInstances)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathInstrumentationAgentInstances, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &instrumentationAgentInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &instrumentationAgentInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentInstances, nil
+}
+
+// GetInstrumentationAgentInstanceByID fetches a instrumentation agent instance by ID.
+func GetInstrumentationAgentInstanceByID(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationAgentInstance, error) {
+	var instrumentationAgentInstance v0.InstrumentationAgentInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentInstances, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationAgentInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationAgentInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentInstance, nil
+}
+
+// GetInstrumentationAgentInstancesByQueryString fetches instrumentation agent instances by provided query string.
+func GetInstrumentationAgentInstancesByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.InstrumentationAgentInstance, error) {
+	var instrumentationAgentInstances []v0.InstrumentationAgentInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathInstrumentationAgentInstances, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationAgentInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &instrumentationAgentInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentInstances, nil
+}
+
+// GetInstrumentationAgentInstanceByName fetches a instrumentation agent instance by name.
+func GetInstrumentationAgentInstanceByName(apiClient *http.Client, apiAddr, name string) (*v0.InstrumentationAgentInstance, error) {
+	var instrumentationAgentInstances []v0.InstrumentationAgentInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathInstrumentationAgentInstances, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.InstrumentationAgentInstance{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.InstrumentationAgentInstance{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(instrumentationAgentInstances) < 1:
+		return &v0.InstrumentationAgentInstance{}, client_lib.ErrObjectNotFound
+	case len(instrumentationAgentInstances) > 1:
+		return &v0.InstrumentationAgentInstance{}, fmt.Errorf("more than one instrumentation agent instance with name %s returned", name)
+	}
+
+	return &instrumentationAgentInstances[0], nil
+}
+
+// CreateInstrumentationAgentInstance creates a new instrumentation agent instance.
+func CreateInstrumentationAgentInstance(apiClient *http.Client, apiAddr string, instrumentationAgentInstance *v0.InstrumentationAgentInstance) (*v0.InstrumentationAgentInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationAgentInstance)
+	jsonInstrumentationAgentInstance, err := util.MarshalObject(instrumentationAgentInstance)
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationAgentInstances),
+		http.MethodPost,
+		bytes.NewBuffer(jsonInstrumentationAgentInstance),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return instrumentationAgentInstance, nil
+}
+
+// UpdateInstrumentationAgentInstance updates a instrumentation agent instance with a PATCH request.
+func UpdateInstrumentationAgentInstance(apiClient *http.Client, apiAddr string, instrumentationAgentInstance *v0.InstrumentationAgentInstance) (*v0.InstrumentationAgentInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationAgentInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationAgentInstanceID := *instrumentationAgentInstance.ID
+	payloadInstrumentationAgentInstance := *instrumentationAgentInstance
+	payloadInstrumentationAgentInstance.ID = nil
+	payloadInstrumentationAgentInstance.CreatedAt = nil
+	payloadInstrumentationAgentInstance.UpdatedAt = nil
+
+	jsonInstrumentationAgentInstance, err := util.MarshalObject(payloadInstrumentationAgentInstance)
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentInstances, instrumentationAgentInstanceID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonInstrumentationAgentInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationAgentInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationAgentInstance.ID = &instrumentationAgentInstanceID
+	return &payloadInstrumentationAgentInstance, nil
+}
+
+// ReplaceInstrumentationAgentInstance updates a instrumentation agent instance with a PUT request.
+func ReplaceInstrumentationAgentInstance(apiClient *http.Client, apiAddr string, instrumentationAgentInstance *v0.InstrumentationAgentInstance) (*v0.InstrumentationAgentInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationAgentInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationAgentInstanceID := *instrumentationAgentInstance.ID
+	payloadInstrumentationAgentInstance := *instrumentationAgentInstance
+	payloadInstrumentationAgentInstance.ID = nil
+	payloadInstrumentationAgentInstance.CreatedAt = nil
+	payloadInstrumentationAgentInstance.UpdatedAt = nil
+
+	jsonInstrumentationAgentInstance, err := util.MarshalObject(payloadInstrumentationAgentInstance)
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentInstances, instrumentationAgentInstanceID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonInstrumentationAgentInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationAgentInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationAgentInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationAgentInstance.ID = &instrumentationAgentInstanceID
+	return &payloadInstrumentationAgentInstance, nil
+}
+
+// DeleteInstrumentationAgentInstance deletes a instrumentation agent instance by ID.
+func DeleteInstrumentationAgentInstance(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationAgentInstance, error) {
+	var instrumentationAgentInstance v0.InstrumentationAgentInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationAgentInstances, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationAgentInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationAgentInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationAgentInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationAgentInstance, nil
+}
+
+// GetInstrumentationBrowserRelayDefinitions fetches all instrumentation browser relay definitions.
+func GetInstrumentationBrowserRelayDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.InstrumentationBrowserRelayDefinition, error) {
+	var instrumentationBrowserRelayDefinitions []v0.InstrumentationBrowserRelayDefinition
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &instrumentationBrowserRelayDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &instrumentationBrowserRelayDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayDefinitions, nil
+}
+
+// GetInstrumentationBrowserRelayDefinitionByID fetches a instrumentation browser relay definition by ID.
+func GetInstrumentationBrowserRelayDefinitionByID(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationBrowserRelayDefinition, error) {
+	var instrumentationBrowserRelayDefinition v0.InstrumentationBrowserRelayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationBrowserRelayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayDefinition, nil
+}
+
+// GetInstrumentationBrowserRelayDefinitionsByQueryString fetches instrumentation browser relay definitions by provided query string.
+func GetInstrumentationBrowserRelayDefinitionsByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.InstrumentationBrowserRelayDefinition, error) {
+	var instrumentationBrowserRelayDefinitions []v0.InstrumentationBrowserRelayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationBrowserRelayDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &instrumentationBrowserRelayDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayDefinitions, nil
+}
+
+// GetInstrumentationBrowserRelayDefinitionByName fetches a instrumentation browser relay definition by name.
+func GetInstrumentationBrowserRelayDefinitionByName(apiClient *http.Client, apiAddr, name string) (*v0.InstrumentationBrowserRelayDefinition, error) {
+	var instrumentationBrowserRelayDefinitions []v0.InstrumentationBrowserRelayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.InstrumentationBrowserRelayDefinition{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.InstrumentationBrowserRelayDefinition{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(instrumentationBrowserRelayDefinitions) < 1:
+		return &v0.InstrumentationBrowserRelayDefinition{}, client_lib.ErrObjectNotFound
+	case len(instrumentationBrowserRelayDefinitions) > 1:
+		return &v0.InstrumentationBrowserRelayDefinition{}, fmt.Errorf("more than one instrumentation browser relay definition with name %s returned", name)
+	}
+
+	return &instrumentationBrowserRelayDefinitions[0], nil
+}
+
+// CreateInstrumentationBrowserRelayDefinition creates a new instrumentation browser relay definition.
+func CreateInstrumentationBrowserRelayDefinition(apiClient *http.Client, apiAddr string, instrumentationBrowserRelayDefinition *v0.InstrumentationBrowserRelayDefinition) (*v0.InstrumentationBrowserRelayDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationBrowserRelayDefinition)
+	jsonInstrumentationBrowserRelayDefinition, err := util.MarshalObject(instrumentationBrowserRelayDefinition)
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions),
+		http.MethodPost,
+		bytes.NewBuffer(jsonInstrumentationBrowserRelayDefinition),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return instrumentationBrowserRelayDefinition, nil
+}
+
+// UpdateInstrumentationBrowserRelayDefinition updates a instrumentation browser relay definition with a PATCH request.
+func UpdateInstrumentationBrowserRelayDefinition(apiClient *http.Client, apiAddr string, instrumentationBrowserRelayDefinition *v0.InstrumentationBrowserRelayDefinition) (*v0.InstrumentationBrowserRelayDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationBrowserRelayDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationBrowserRelayDefinitionID := *instrumentationBrowserRelayDefinition.ID
+	payloadInstrumentationBrowserRelayDefinition := *instrumentationBrowserRelayDefinition
+	payloadInstrumentationBrowserRelayDefinition.ID = nil
+	payloadInstrumentationBrowserRelayDefinition.CreatedAt = nil
+	payloadInstrumentationBrowserRelayDefinition.UpdatedAt = nil
+
+	jsonInstrumentationBrowserRelayDefinition, err := util.MarshalObject(payloadInstrumentationBrowserRelayDefinition)
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, instrumentationBrowserRelayDefinitionID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonInstrumentationBrowserRelayDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationBrowserRelayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationBrowserRelayDefinition.ID = &instrumentationBrowserRelayDefinitionID
+	return &payloadInstrumentationBrowserRelayDefinition, nil
+}
+
+// ReplaceInstrumentationBrowserRelayDefinition updates a instrumentation browser relay definition with a PUT request.
+func ReplaceInstrumentationBrowserRelayDefinition(apiClient *http.Client, apiAddr string, instrumentationBrowserRelayDefinition *v0.InstrumentationBrowserRelayDefinition) (*v0.InstrumentationBrowserRelayDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationBrowserRelayDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationBrowserRelayDefinitionID := *instrumentationBrowserRelayDefinition.ID
+	payloadInstrumentationBrowserRelayDefinition := *instrumentationBrowserRelayDefinition
+	payloadInstrumentationBrowserRelayDefinition.ID = nil
+	payloadInstrumentationBrowserRelayDefinition.CreatedAt = nil
+	payloadInstrumentationBrowserRelayDefinition.UpdatedAt = nil
+
+	jsonInstrumentationBrowserRelayDefinition, err := util.MarshalObject(payloadInstrumentationBrowserRelayDefinition)
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, instrumentationBrowserRelayDefinitionID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonInstrumentationBrowserRelayDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationBrowserRelayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationBrowserRelayDefinition.ID = &instrumentationBrowserRelayDefinitionID
+	return &payloadInstrumentationBrowserRelayDefinition, nil
+}
+
+// DeleteInstrumentationBrowserRelayDefinition deletes a instrumentation browser relay definition by ID.
+func DeleteInstrumentationBrowserRelayDefinition(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationBrowserRelayDefinition, error) {
+	var instrumentationBrowserRelayDefinition v0.InstrumentationBrowserRelayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayDefinitions, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationBrowserRelayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationBrowserRelayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayDefinition, nil
+}
+
+// GetInstrumentationBrowserRelayInstances fetches all instrumentation browser relay instances.
+func GetInstrumentationBrowserRelayInstances(apiClient *http.Client, apiAddr string) (*[]v0.InstrumentationBrowserRelayInstance, error) {
+	var instrumentationBrowserRelayInstances []v0.InstrumentationBrowserRelayInstance
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationBrowserRelayInstances)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathInstrumentationBrowserRelayInstances, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &instrumentationBrowserRelayInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &instrumentationBrowserRelayInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayInstances, nil
+}
+
+// GetInstrumentationBrowserRelayInstanceByID fetches a instrumentation browser relay instance by ID.
+func GetInstrumentationBrowserRelayInstanceByID(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationBrowserRelayInstance, error) {
+	var instrumentationBrowserRelayInstance v0.InstrumentationBrowserRelayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayInstances, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationBrowserRelayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayInstance, nil
+}
+
+// GetInstrumentationBrowserRelayInstancesByQueryString fetches instrumentation browser relay instances by provided query string.
+func GetInstrumentationBrowserRelayInstancesByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.InstrumentationBrowserRelayInstance, error) {
+	var instrumentationBrowserRelayInstances []v0.InstrumentationBrowserRelayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathInstrumentationBrowserRelayInstances, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationBrowserRelayInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &instrumentationBrowserRelayInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayInstances, nil
+}
+
+// GetInstrumentationBrowserRelayInstanceByName fetches a instrumentation browser relay instance by name.
+func GetInstrumentationBrowserRelayInstanceByName(apiClient *http.Client, apiAddr, name string) (*v0.InstrumentationBrowserRelayInstance, error) {
+	var instrumentationBrowserRelayInstances []v0.InstrumentationBrowserRelayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathInstrumentationBrowserRelayInstances, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.InstrumentationBrowserRelayInstance{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.InstrumentationBrowserRelayInstance{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(instrumentationBrowserRelayInstances) < 1:
+		return &v0.InstrumentationBrowserRelayInstance{}, client_lib.ErrObjectNotFound
+	case len(instrumentationBrowserRelayInstances) > 1:
+		return &v0.InstrumentationBrowserRelayInstance{}, fmt.Errorf("more than one instrumentation browser relay instance with name %s returned", name)
+	}
+
+	return &instrumentationBrowserRelayInstances[0], nil
+}
+
+// CreateInstrumentationBrowserRelayInstance creates a new instrumentation browser relay instance.
+func CreateInstrumentationBrowserRelayInstance(apiClient *http.Client, apiAddr string, instrumentationBrowserRelayInstance *v0.InstrumentationBrowserRelayInstance) (*v0.InstrumentationBrowserRelayInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationBrowserRelayInstance)
+	jsonInstrumentationBrowserRelayInstance, err := util.MarshalObject(instrumentationBrowserRelayInstance)
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationBrowserRelayInstances),
+		http.MethodPost,
+		bytes.NewBuffer(jsonInstrumentationBrowserRelayInstance),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return instrumentationBrowserRelayInstance, nil
+}
+
+// UpdateInstrumentationBrowserRelayInstance updates a instrumentation browser relay instance with a PATCH request.
+func UpdateInstrumentationBrowserRelayInstance(apiClient *http.Client, apiAddr string, instrumentationBrowserRelayInstance *v0.InstrumentationBrowserRelayInstance) (*v0.InstrumentationBrowserRelayInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationBrowserRelayInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationBrowserRelayInstanceID := *instrumentationBrowserRelayInstance.ID
+	payloadInstrumentationBrowserRelayInstance := *instrumentationBrowserRelayInstance
+	payloadInstrumentationBrowserRelayInstance.ID = nil
+	payloadInstrumentationBrowserRelayInstance.CreatedAt = nil
+	payloadInstrumentationBrowserRelayInstance.UpdatedAt = nil
+
+	jsonInstrumentationBrowserRelayInstance, err := util.MarshalObject(payloadInstrumentationBrowserRelayInstance)
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayInstances, instrumentationBrowserRelayInstanceID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonInstrumentationBrowserRelayInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationBrowserRelayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationBrowserRelayInstance.ID = &instrumentationBrowserRelayInstanceID
+	return &payloadInstrumentationBrowserRelayInstance, nil
+}
+
+// ReplaceInstrumentationBrowserRelayInstance updates a instrumentation browser relay instance with a PUT request.
+func ReplaceInstrumentationBrowserRelayInstance(apiClient *http.Client, apiAddr string, instrumentationBrowserRelayInstance *v0.InstrumentationBrowserRelayInstance) (*v0.InstrumentationBrowserRelayInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationBrowserRelayInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationBrowserRelayInstanceID := *instrumentationBrowserRelayInstance.ID
+	payloadInstrumentationBrowserRelayInstance := *instrumentationBrowserRelayInstance
+	payloadInstrumentationBrowserRelayInstance.ID = nil
+	payloadInstrumentationBrowserRelayInstance.CreatedAt = nil
+	payloadInstrumentationBrowserRelayInstance.UpdatedAt = nil
+
+	jsonInstrumentationBrowserRelayInstance, err := util.MarshalObject(payloadInstrumentationBrowserRelayInstance)
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayInstances, instrumentationBrowserRelayInstanceID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonInstrumentationBrowserRelayInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationBrowserRelayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationBrowserRelayInstance.ID = &instrumentationBrowserRelayInstanceID
+	return &payloadInstrumentationBrowserRelayInstance, nil
+}
+
+// DeleteInstrumentationBrowserRelayInstance deletes a instrumentation browser relay instance by ID.
+func DeleteInstrumentationBrowserRelayInstance(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationBrowserRelayInstance, error) {
+	var instrumentationBrowserRelayInstance v0.InstrumentationBrowserRelayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationBrowserRelayInstances, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationBrowserRelayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationBrowserRelayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationBrowserRelayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationBrowserRelayInstance, nil
+}
+
+// GetInstrumentationGatewayDefinitions fetches all instrumentation gateway definitions.
+func GetInstrumentationGatewayDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.InstrumentationGatewayDefinition, error) {
+	var instrumentationGatewayDefinitions []v0.InstrumentationGatewayDefinition
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationGatewayDefinitions)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathInstrumentationGatewayDefinitions, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &instrumentationGatewayDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &instrumentationGatewayDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayDefinitions, nil
+}
+
+// GetInstrumentationGatewayDefinitionByID fetches a instrumentation gateway definition by ID.
+func GetInstrumentationGatewayDefinitionByID(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationGatewayDefinition, error) {
+	var instrumentationGatewayDefinition v0.InstrumentationGatewayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayDefinitions, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationGatewayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationGatewayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayDefinition, nil
+}
+
+// GetInstrumentationGatewayDefinitionsByQueryString fetches instrumentation gateway definitions by provided query string.
+func GetInstrumentationGatewayDefinitionsByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.InstrumentationGatewayDefinition, error) {
+	var instrumentationGatewayDefinitions []v0.InstrumentationGatewayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathInstrumentationGatewayDefinitions, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationGatewayDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &instrumentationGatewayDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayDefinitions, nil
+}
+
+// GetInstrumentationGatewayDefinitionByName fetches a instrumentation gateway definition by name.
+func GetInstrumentationGatewayDefinitionByName(apiClient *http.Client, apiAddr, name string) (*v0.InstrumentationGatewayDefinition, error) {
+	var instrumentationGatewayDefinitions []v0.InstrumentationGatewayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathInstrumentationGatewayDefinitions, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.InstrumentationGatewayDefinition{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.InstrumentationGatewayDefinition{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(instrumentationGatewayDefinitions) < 1:
+		return &v0.InstrumentationGatewayDefinition{}, client_lib.ErrObjectNotFound
+	case len(instrumentationGatewayDefinitions) > 1:
+		return &v0.InstrumentationGatewayDefinition{}, fmt.Errorf("more than one instrumentation gateway definition with name %s returned", name)
+	}
+
+	return &instrumentationGatewayDefinitions[0], nil
+}
+
+// CreateInstrumentationGatewayDefinition creates a new instrumentation gateway definition.
+func CreateInstrumentationGatewayDefinition(apiClient *http.Client, apiAddr string, instrumentationGatewayDefinition *v0.InstrumentationGatewayDefinition) (*v0.InstrumentationGatewayDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationGatewayDefinition)
+	jsonInstrumentationGatewayDefinition, err := util.MarshalObject(instrumentationGatewayDefinition)
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationGatewayDefinitions),
+		http.MethodPost,
+		bytes.NewBuffer(jsonInstrumentationGatewayDefinition),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return instrumentationGatewayDefinition, nil
+}
+
+// UpdateInstrumentationGatewayDefinition updates a instrumentation gateway definition with a PATCH request.
+func UpdateInstrumentationGatewayDefinition(apiClient *http.Client, apiAddr string, instrumentationGatewayDefinition *v0.InstrumentationGatewayDefinition) (*v0.InstrumentationGatewayDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationGatewayDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationGatewayDefinitionID := *instrumentationGatewayDefinition.ID
+	payloadInstrumentationGatewayDefinition := *instrumentationGatewayDefinition
+	payloadInstrumentationGatewayDefinition.ID = nil
+	payloadInstrumentationGatewayDefinition.CreatedAt = nil
+	payloadInstrumentationGatewayDefinition.UpdatedAt = nil
+
+	jsonInstrumentationGatewayDefinition, err := util.MarshalObject(payloadInstrumentationGatewayDefinition)
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayDefinitions, instrumentationGatewayDefinitionID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonInstrumentationGatewayDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationGatewayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationGatewayDefinition.ID = &instrumentationGatewayDefinitionID
+	return &payloadInstrumentationGatewayDefinition, nil
+}
+
+// ReplaceInstrumentationGatewayDefinition updates a instrumentation gateway definition with a PUT request.
+func ReplaceInstrumentationGatewayDefinition(apiClient *http.Client, apiAddr string, instrumentationGatewayDefinition *v0.InstrumentationGatewayDefinition) (*v0.InstrumentationGatewayDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationGatewayDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationGatewayDefinitionID := *instrumentationGatewayDefinition.ID
+	payloadInstrumentationGatewayDefinition := *instrumentationGatewayDefinition
+	payloadInstrumentationGatewayDefinition.ID = nil
+	payloadInstrumentationGatewayDefinition.CreatedAt = nil
+	payloadInstrumentationGatewayDefinition.UpdatedAt = nil
+
+	jsonInstrumentationGatewayDefinition, err := util.MarshalObject(payloadInstrumentationGatewayDefinition)
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayDefinitions, instrumentationGatewayDefinitionID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonInstrumentationGatewayDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationGatewayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationGatewayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationGatewayDefinition.ID = &instrumentationGatewayDefinitionID
+	return &payloadInstrumentationGatewayDefinition, nil
+}
+
+// DeleteInstrumentationGatewayDefinition deletes a instrumentation gateway definition by ID.
+func DeleteInstrumentationGatewayDefinition(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationGatewayDefinition, error) {
+	var instrumentationGatewayDefinition v0.InstrumentationGatewayDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayDefinitions, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationGatewayDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationGatewayDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayDefinition, nil
+}
+
+// GetInstrumentationGatewayInstances fetches all instrumentation gateway instances.
+func GetInstrumentationGatewayInstances(apiClient *http.Client, apiAddr string) (*[]v0.InstrumentationGatewayInstance, error) {
+	var instrumentationGatewayInstances []v0.InstrumentationGatewayInstance
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationGatewayInstances)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathInstrumentationGatewayInstances, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &instrumentationGatewayInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &instrumentationGatewayInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayInstances, nil
+}
+
+// GetInstrumentationGatewayInstanceByID fetches a instrumentation gateway instance by ID.
+func GetInstrumentationGatewayInstanceByID(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationGatewayInstance, error) {
+	var instrumentationGatewayInstance v0.InstrumentationGatewayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayInstances, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationGatewayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationGatewayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayInstance, nil
+}
+
+// GetInstrumentationGatewayInstancesByQueryString fetches instrumentation gateway instances by provided query string.
+func GetInstrumentationGatewayInstancesByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.InstrumentationGatewayInstance, error) {
+	var instrumentationGatewayInstances []v0.InstrumentationGatewayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathInstrumentationGatewayInstances, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationGatewayInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &instrumentationGatewayInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayInstances, nil
+}
+
+// GetInstrumentationGatewayInstanceByName fetches a instrumentation gateway instance by name.
+func GetInstrumentationGatewayInstanceByName(apiClient *http.Client, apiAddr, name string) (*v0.InstrumentationGatewayInstance, error) {
+	var instrumentationGatewayInstances []v0.InstrumentationGatewayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathInstrumentationGatewayInstances, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.InstrumentationGatewayInstance{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.InstrumentationGatewayInstance{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(instrumentationGatewayInstances) < 1:
+		return &v0.InstrumentationGatewayInstance{}, client_lib.ErrObjectNotFound
+	case len(instrumentationGatewayInstances) > 1:
+		return &v0.InstrumentationGatewayInstance{}, fmt.Errorf("more than one instrumentation gateway instance with name %s returned", name)
+	}
+
+	return &instrumentationGatewayInstances[0], nil
+}
+
+// CreateInstrumentationGatewayInstance creates a new instrumentation gateway instance.
+func CreateInstrumentationGatewayInstance(apiClient *http.Client, apiAddr string, instrumentationGatewayInstance *v0.InstrumentationGatewayInstance) (*v0.InstrumentationGatewayInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationGatewayInstance)
+	jsonInstrumentationGatewayInstance, err := util.MarshalObject(instrumentationGatewayInstance)
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathInstrumentationGatewayInstances),
+		http.MethodPost,
+		bytes.NewBuffer(jsonInstrumentationGatewayInstance),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return instrumentationGatewayInstance, nil
+}
+
+// UpdateInstrumentationGatewayInstance updates a instrumentation gateway instance with a PATCH request.
+func UpdateInstrumentationGatewayInstance(apiClient *http.Client, apiAddr string, instrumentationGatewayInstance *v0.InstrumentationGatewayInstance) (*v0.InstrumentationGatewayInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationGatewayInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationGatewayInstanceID := *instrumentationGatewayInstance.ID
+	payloadInstrumentationGatewayInstance := *instrumentationGatewayInstance
+	payloadInstrumentationGatewayInstance.ID = nil
+	payloadInstrumentationGatewayInstance.CreatedAt = nil
+	payloadInstrumentationGatewayInstance.UpdatedAt = nil
+
+	jsonInstrumentationGatewayInstance, err := util.MarshalObject(payloadInstrumentationGatewayInstance)
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayInstances, instrumentationGatewayInstanceID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonInstrumentationGatewayInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationGatewayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationGatewayInstance.ID = &instrumentationGatewayInstanceID
+	return &payloadInstrumentationGatewayInstance, nil
+}
+
+// ReplaceInstrumentationGatewayInstance updates a instrumentation gateway instance with a PUT request.
+func ReplaceInstrumentationGatewayInstance(apiClient *http.Client, apiAddr string, instrumentationGatewayInstance *v0.InstrumentationGatewayInstance) (*v0.InstrumentationGatewayInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(instrumentationGatewayInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	instrumentationGatewayInstanceID := *instrumentationGatewayInstance.ID
+	payloadInstrumentationGatewayInstance := *instrumentationGatewayInstance
+	payloadInstrumentationGatewayInstance.ID = nil
+	payloadInstrumentationGatewayInstance.CreatedAt = nil
+	payloadInstrumentationGatewayInstance.UpdatedAt = nil
+
+	jsonInstrumentationGatewayInstance, err := util.MarshalObject(payloadInstrumentationGatewayInstance)
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayInstances, instrumentationGatewayInstanceID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonInstrumentationGatewayInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return instrumentationGatewayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadInstrumentationGatewayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadInstrumentationGatewayInstance.ID = &instrumentationGatewayInstanceID
+	return &payloadInstrumentationGatewayInstance, nil
+}
+
+// DeleteInstrumentationGatewayInstance deletes a instrumentation gateway instance by ID.
+func DeleteInstrumentationGatewayInstance(apiClient *http.Client, apiAddr string, id uint) (*v0.InstrumentationGatewayInstance, error) {
+	var instrumentationGatewayInstance v0.InstrumentationGatewayInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathInstrumentationGatewayInstances, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &instrumentationGatewayInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &instrumentationGatewayInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&instrumentationGatewayInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &instrumentationGatewayInstance, nil
+}
+
 // GetLoggingDefinitions fetches all logging definitions.
 func GetLoggingDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.LoggingDefinition, error) {
 	var loggingDefinitions []v0.LoggingDefinition
@@ -2387,4 +4169,598 @@ func DeleteObservabilityStackInstance(apiClient *http.Client, apiAddr string, id
 	}
 
 	return &observabilityStackInstance, nil
+}
+
+// GetTracingDefinitions fetches all tracing definitions.
+func GetTracingDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.TracingDefinition, error) {
+	var tracingDefinitions []v0.TracingDefinition
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathTracingDefinitions)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathTracingDefinitions, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &tracingDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &tracingDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingDefinitions, nil
+}
+
+// GetTracingDefinitionByID fetches a tracing definition by ID.
+func GetTracingDefinitionByID(apiClient *http.Client, apiAddr string, id uint) (*v0.TracingDefinition, error) {
+	var tracingDefinition v0.TracingDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingDefinitions, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &tracingDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &tracingDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingDefinition, nil
+}
+
+// GetTracingDefinitionsByQueryString fetches tracing definitions by provided query string.
+func GetTracingDefinitionsByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.TracingDefinition, error) {
+	var tracingDefinitions []v0.TracingDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathTracingDefinitions, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &tracingDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &tracingDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingDefinitions, nil
+}
+
+// GetTracingDefinitionByName fetches a tracing definition by name.
+func GetTracingDefinitionByName(apiClient *http.Client, apiAddr, name string) (*v0.TracingDefinition, error) {
+	var tracingDefinitions []v0.TracingDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathTracingDefinitions, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.TracingDefinition{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.TracingDefinition{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(tracingDefinitions) < 1:
+		return &v0.TracingDefinition{}, client_lib.ErrObjectNotFound
+	case len(tracingDefinitions) > 1:
+		return &v0.TracingDefinition{}, fmt.Errorf("more than one tracing definition with name %s returned", name)
+	}
+
+	return &tracingDefinitions[0], nil
+}
+
+// CreateTracingDefinition creates a new tracing definition.
+func CreateTracingDefinition(apiClient *http.Client, apiAddr string, tracingDefinition *v0.TracingDefinition) (*v0.TracingDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(tracingDefinition)
+	jsonTracingDefinition, err := util.MarshalObject(tracingDefinition)
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathTracingDefinitions),
+		http.MethodPost,
+		bytes.NewBuffer(jsonTracingDefinition),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return tracingDefinition, nil
+}
+
+// UpdateTracingDefinition updates a tracing definition with a PATCH request.
+func UpdateTracingDefinition(apiClient *http.Client, apiAddr string, tracingDefinition *v0.TracingDefinition) (*v0.TracingDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(tracingDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	tracingDefinitionID := *tracingDefinition.ID
+	payloadTracingDefinition := *tracingDefinition
+	payloadTracingDefinition.ID = nil
+	payloadTracingDefinition.CreatedAt = nil
+	payloadTracingDefinition.UpdatedAt = nil
+
+	jsonTracingDefinition, err := util.MarshalObject(payloadTracingDefinition)
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingDefinitions, tracingDefinitionID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonTracingDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadTracingDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadTracingDefinition.ID = &tracingDefinitionID
+	return &payloadTracingDefinition, nil
+}
+
+// ReplaceTracingDefinition updates a tracing definition with a PUT request.
+func ReplaceTracingDefinition(apiClient *http.Client, apiAddr string, tracingDefinition *v0.TracingDefinition) (*v0.TracingDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(tracingDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	tracingDefinitionID := *tracingDefinition.ID
+	payloadTracingDefinition := *tracingDefinition
+	payloadTracingDefinition.ID = nil
+	payloadTracingDefinition.CreatedAt = nil
+	payloadTracingDefinition.UpdatedAt = nil
+
+	jsonTracingDefinition, err := util.MarshalObject(payloadTracingDefinition)
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingDefinitions, tracingDefinitionID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonTracingDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return tracingDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadTracingDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadTracingDefinition.ID = &tracingDefinitionID
+	return &payloadTracingDefinition, nil
+}
+
+// DeleteTracingDefinition deletes a tracing definition by ID.
+func DeleteTracingDefinition(apiClient *http.Client, apiAddr string, id uint) (*v0.TracingDefinition, error) {
+	var tracingDefinition v0.TracingDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingDefinitions, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &tracingDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &tracingDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingDefinition, nil
+}
+
+// GetTracingInstances fetches all tracing instances.
+func GetTracingInstances(apiClient *http.Client, apiAddr string) (*[]v0.TracingInstance, error) {
+	var tracingInstances []v0.TracingInstance
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathTracingInstances)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathTracingInstances, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &tracingInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &tracingInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingInstances, nil
+}
+
+// GetTracingInstanceByID fetches a tracing instance by ID.
+func GetTracingInstanceByID(apiClient *http.Client, apiAddr string, id uint) (*v0.TracingInstance, error) {
+	var tracingInstance v0.TracingInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingInstances, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &tracingInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &tracingInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingInstance, nil
+}
+
+// GetTracingInstancesByQueryString fetches tracing instances by provided query string.
+func GetTracingInstancesByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.TracingInstance, error) {
+	var tracingInstances []v0.TracingInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathTracingInstances, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &tracingInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &tracingInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingInstances, nil
+}
+
+// GetTracingInstanceByName fetches a tracing instance by name.
+func GetTracingInstanceByName(apiClient *http.Client, apiAddr, name string) (*v0.TracingInstance, error) {
+	var tracingInstances []v0.TracingInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathTracingInstances, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.TracingInstance{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.TracingInstance{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(tracingInstances) < 1:
+		return &v0.TracingInstance{}, client_lib.ErrObjectNotFound
+	case len(tracingInstances) > 1:
+		return &v0.TracingInstance{}, fmt.Errorf("more than one tracing instance with name %s returned", name)
+	}
+
+	return &tracingInstances[0], nil
+}
+
+// CreateTracingInstance creates a new tracing instance.
+func CreateTracingInstance(apiClient *http.Client, apiAddr string, tracingInstance *v0.TracingInstance) (*v0.TracingInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(tracingInstance)
+	jsonTracingInstance, err := util.MarshalObject(tracingInstance)
+	if err != nil {
+		return tracingInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathTracingInstances),
+		http.MethodPost,
+		bytes.NewBuffer(jsonTracingInstance),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return tracingInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return tracingInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return tracingInstance, nil
+}
+
+// UpdateTracingInstance updates a tracing instance with a PATCH request.
+func UpdateTracingInstance(apiClient *http.Client, apiAddr string, tracingInstance *v0.TracingInstance) (*v0.TracingInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(tracingInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	tracingInstanceID := *tracingInstance.ID
+	payloadTracingInstance := *tracingInstance
+	payloadTracingInstance.ID = nil
+	payloadTracingInstance.CreatedAt = nil
+	payloadTracingInstance.UpdatedAt = nil
+
+	jsonTracingInstance, err := util.MarshalObject(payloadTracingInstance)
+	if err != nil {
+		return tracingInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingInstances, tracingInstanceID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonTracingInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return tracingInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return tracingInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadTracingInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadTracingInstance.ID = &tracingInstanceID
+	return &payloadTracingInstance, nil
+}
+
+// ReplaceTracingInstance updates a tracing instance with a PUT request.
+func ReplaceTracingInstance(apiClient *http.Client, apiAddr string, tracingInstance *v0.TracingInstance) (*v0.TracingInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(tracingInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	tracingInstanceID := *tracingInstance.ID
+	payloadTracingInstance := *tracingInstance
+	payloadTracingInstance.ID = nil
+	payloadTracingInstance.CreatedAt = nil
+	payloadTracingInstance.UpdatedAt = nil
+
+	jsonTracingInstance, err := util.MarshalObject(payloadTracingInstance)
+	if err != nil {
+		return tracingInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingInstances, tracingInstanceID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonTracingInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return tracingInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return tracingInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadTracingInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadTracingInstance.ID = &tracingInstanceID
+	return &payloadTracingInstance, nil
+}
+
+// DeleteTracingInstance deletes a tracing instance by ID.
+func DeleteTracingInstance(apiClient *http.Client, apiAddr string, id uint) (*v0.TracingInstance, error) {
+	var tracingInstance v0.TracingInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathTracingInstances, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &tracingInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &tracingInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&tracingInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &tracingInstance, nil
 }

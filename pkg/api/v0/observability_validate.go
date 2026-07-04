@@ -4,6 +4,186 @@ package v0
 
 import gorm "gorm.io/gorm"
 
+// beforeCreate runs before the InstrumentationAgentDefinition is created.
+func (i *InstrumentationAgentDefinition) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the InstrumentationAgentDefinition is updated.
+func (i *InstrumentationAgentDefinition) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the InstrumentationAgentDefinition is deleted.
+func (i *InstrumentationAgentDefinition) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the InstrumentationAgentDefinition is created.
+func (i *InstrumentationAgentDefinition) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the InstrumentationAgentDefinition is updated.
+func (i *InstrumentationAgentDefinition) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the InstrumentationAgentDefinition is deleted.
+func (i *InstrumentationAgentDefinition) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the InstrumentationAgentInstance is created.
+func (i *InstrumentationAgentInstance) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the InstrumentationAgentInstance is updated.
+func (i *InstrumentationAgentInstance) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the InstrumentationAgentInstance is deleted.
+func (i *InstrumentationAgentInstance) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the InstrumentationAgentInstance is created.
+func (i *InstrumentationAgentInstance) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the InstrumentationAgentInstance is updated.
+func (i *InstrumentationAgentInstance) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the InstrumentationAgentInstance is deleted.
+func (i *InstrumentationAgentInstance) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the InstrumentationBrowserRelayDefinition is created.
+func (i *InstrumentationBrowserRelayDefinition) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the InstrumentationBrowserRelayDefinition is updated.
+func (i *InstrumentationBrowserRelayDefinition) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the InstrumentationBrowserRelayDefinition is deleted.
+func (i *InstrumentationBrowserRelayDefinition) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the InstrumentationBrowserRelayDefinition is created.
+func (i *InstrumentationBrowserRelayDefinition) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the InstrumentationBrowserRelayDefinition is updated.
+func (i *InstrumentationBrowserRelayDefinition) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the InstrumentationBrowserRelayDefinition is deleted.
+func (i *InstrumentationBrowserRelayDefinition) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the InstrumentationBrowserRelayInstance is created.
+func (i *InstrumentationBrowserRelayInstance) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the InstrumentationBrowserRelayInstance is updated.
+func (i *InstrumentationBrowserRelayInstance) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the InstrumentationBrowserRelayInstance is deleted.
+func (i *InstrumentationBrowserRelayInstance) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the InstrumentationBrowserRelayInstance is created.
+func (i *InstrumentationBrowserRelayInstance) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the InstrumentationBrowserRelayInstance is updated.
+func (i *InstrumentationBrowserRelayInstance) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the InstrumentationBrowserRelayInstance is deleted.
+func (i *InstrumentationBrowserRelayInstance) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the InstrumentationGatewayDefinition is created.
+func (i *InstrumentationGatewayDefinition) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the InstrumentationGatewayDefinition is updated.
+func (i *InstrumentationGatewayDefinition) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the InstrumentationGatewayDefinition is deleted.
+func (i *InstrumentationGatewayDefinition) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the InstrumentationGatewayDefinition is created.
+func (i *InstrumentationGatewayDefinition) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the InstrumentationGatewayDefinition is updated.
+func (i *InstrumentationGatewayDefinition) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the InstrumentationGatewayDefinition is deleted.
+func (i *InstrumentationGatewayDefinition) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the InstrumentationGatewayInstance is created.
+func (i *InstrumentationGatewayInstance) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the InstrumentationGatewayInstance is updated.
+func (i *InstrumentationGatewayInstance) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the InstrumentationGatewayInstance is deleted.
+func (i *InstrumentationGatewayInstance) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the InstrumentationGatewayInstance is created.
+func (i *InstrumentationGatewayInstance) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the InstrumentationGatewayInstance is updated.
+func (i *InstrumentationGatewayInstance) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the InstrumentationGatewayInstance is deleted.
+func (i *InstrumentationGatewayInstance) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
 // beforeCreate runs before the LoggingDefinition is created.
 func (l *LoggingDefinition) beforeCreate(tx *gorm.DB) error {
 	return nil
@@ -241,5 +421,65 @@ func (o *ObservabilityStackInstance) afterUpdate(tx *gorm.DB) error {
 
 // afterDelete runs after the ObservabilityStackInstance is deleted.
 func (o *ObservabilityStackInstance) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the TracingDefinition is created.
+func (t *TracingDefinition) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the TracingDefinition is updated.
+func (t *TracingDefinition) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the TracingDefinition is deleted.
+func (t *TracingDefinition) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the TracingDefinition is created.
+func (t *TracingDefinition) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the TracingDefinition is updated.
+func (t *TracingDefinition) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the TracingDefinition is deleted.
+func (t *TracingDefinition) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the TracingInstance is created.
+func (t *TracingInstance) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the TracingInstance is updated.
+func (t *TracingInstance) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the TracingInstance is deleted.
+func (t *TracingInstance) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the TracingInstance is created.
+func (t *TracingInstance) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the TracingInstance is updated.
+func (t *TracingInstance) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the TracingInstance is deleted.
+func (t *TracingInstance) afterDelete(tx *gorm.DB) error {
 	return nil
 }

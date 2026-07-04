@@ -44,6 +44,46 @@ const (
 	LoggingInstanceCreateSubject = "loggingInstance.create"
 	LoggingInstanceUpdateSubject = "loggingInstance.update"
 	LoggingInstanceDeleteSubject = "loggingInstance.delete"
+
+	TracingDefinitionSubject       = "tracingDefinition.*"
+	TracingDefinitionCreateSubject = "tracingDefinition.create"
+	TracingDefinitionUpdateSubject = "tracingDefinition.update"
+	TracingDefinitionDeleteSubject = "tracingDefinition.delete"
+
+	TracingInstanceSubject       = "tracingInstance.*"
+	TracingInstanceCreateSubject = "tracingInstance.create"
+	TracingInstanceUpdateSubject = "tracingInstance.update"
+	TracingInstanceDeleteSubject = "tracingInstance.delete"
+
+	InstrumentationAgentDefinitionSubject       = "instrumentationAgentDefinition.*"
+	InstrumentationAgentDefinitionCreateSubject = "instrumentationAgentDefinition.create"
+	InstrumentationAgentDefinitionUpdateSubject = "instrumentationAgentDefinition.update"
+	InstrumentationAgentDefinitionDeleteSubject = "instrumentationAgentDefinition.delete"
+
+	InstrumentationAgentInstanceSubject       = "instrumentationAgentInstance.*"
+	InstrumentationAgentInstanceCreateSubject = "instrumentationAgentInstance.create"
+	InstrumentationAgentInstanceUpdateSubject = "instrumentationAgentInstance.update"
+	InstrumentationAgentInstanceDeleteSubject = "instrumentationAgentInstance.delete"
+
+	InstrumentationGatewayDefinitionSubject       = "instrumentationGatewayDefinition.*"
+	InstrumentationGatewayDefinitionCreateSubject = "instrumentationGatewayDefinition.create"
+	InstrumentationGatewayDefinitionUpdateSubject = "instrumentationGatewayDefinition.update"
+	InstrumentationGatewayDefinitionDeleteSubject = "instrumentationGatewayDefinition.delete"
+
+	InstrumentationGatewayInstanceSubject       = "instrumentationGatewayInstance.*"
+	InstrumentationGatewayInstanceCreateSubject = "instrumentationGatewayInstance.create"
+	InstrumentationGatewayInstanceUpdateSubject = "instrumentationGatewayInstance.update"
+	InstrumentationGatewayInstanceDeleteSubject = "instrumentationGatewayInstance.delete"
+
+	InstrumentationBrowserRelayDefinitionSubject       = "instrumentationBrowserRelayDefinition.*"
+	InstrumentationBrowserRelayDefinitionCreateSubject = "instrumentationBrowserRelayDefinition.create"
+	InstrumentationBrowserRelayDefinitionUpdateSubject = "instrumentationBrowserRelayDefinition.update"
+	InstrumentationBrowserRelayDefinitionDeleteSubject = "instrumentationBrowserRelayDefinition.delete"
+
+	InstrumentationBrowserRelayInstanceSubject       = "instrumentationBrowserRelayInstance.*"
+	InstrumentationBrowserRelayInstanceCreateSubject = "instrumentationBrowserRelayInstance.create"
+	InstrumentationBrowserRelayInstanceUpdateSubject = "instrumentationBrowserRelayInstance.update"
+	InstrumentationBrowserRelayInstanceDeleteSubject = "instrumentationBrowserRelayInstance.delete"
 )
 
 // GetObservabilityStackDefinitionSubjects returns the NATS subjects
@@ -126,6 +166,86 @@ func GetLoggingInstanceSubjects() []string {
 	}
 }
 
+// GetTracingDefinitionSubjects returns the NATS subjects
+// for tracing definitions.
+func GetTracingDefinitionSubjects() []string {
+	return []string{
+		TracingDefinitionCreateSubject,
+		TracingDefinitionUpdateSubject,
+		TracingDefinitionDeleteSubject,
+	}
+}
+
+// GetTracingInstanceSubjects returns the NATS subjects
+// for tracing instances.
+func GetTracingInstanceSubjects() []string {
+	return []string{
+		TracingInstanceCreateSubject,
+		TracingInstanceUpdateSubject,
+		TracingInstanceDeleteSubject,
+	}
+}
+
+// GetInstrumentationAgentDefinitionSubjects returns the NATS subjects
+// for instrumentation agent definitions.
+func GetInstrumentationAgentDefinitionSubjects() []string {
+	return []string{
+		InstrumentationAgentDefinitionCreateSubject,
+		InstrumentationAgentDefinitionUpdateSubject,
+		InstrumentationAgentDefinitionDeleteSubject,
+	}
+}
+
+// GetInstrumentationAgentInstanceSubjects returns the NATS subjects
+// for instrumentation agent instances.
+func GetInstrumentationAgentInstanceSubjects() []string {
+	return []string{
+		InstrumentationAgentInstanceCreateSubject,
+		InstrumentationAgentInstanceUpdateSubject,
+		InstrumentationAgentInstanceDeleteSubject,
+	}
+}
+
+// GetInstrumentationGatewayDefinitionSubjects returns the NATS subjects
+// for instrumentation gateway definitions.
+func GetInstrumentationGatewayDefinitionSubjects() []string {
+	return []string{
+		InstrumentationGatewayDefinitionCreateSubject,
+		InstrumentationGatewayDefinitionUpdateSubject,
+		InstrumentationGatewayDefinitionDeleteSubject,
+	}
+}
+
+// GetInstrumentationGatewayInstanceSubjects returns the NATS subjects
+// for instrumentation gateway instances.
+func GetInstrumentationGatewayInstanceSubjects() []string {
+	return []string{
+		InstrumentationGatewayInstanceCreateSubject,
+		InstrumentationGatewayInstanceUpdateSubject,
+		InstrumentationGatewayInstanceDeleteSubject,
+	}
+}
+
+// GetInstrumentationBrowserRelayDefinitionSubjects returns the NATS subjects
+// for instrumentation browser relay definitions.
+func GetInstrumentationBrowserRelayDefinitionSubjects() []string {
+	return []string{
+		InstrumentationBrowserRelayDefinitionCreateSubject,
+		InstrumentationBrowserRelayDefinitionUpdateSubject,
+		InstrumentationBrowserRelayDefinitionDeleteSubject,
+	}
+}
+
+// GetInstrumentationBrowserRelayInstanceSubjects returns the NATS subjects
+// for instrumentation browser relay instances.
+func GetInstrumentationBrowserRelayInstanceSubjects() []string {
+	return []string{
+		InstrumentationBrowserRelayInstanceCreateSubject,
+		InstrumentationBrowserRelayInstanceUpdateSubject,
+		InstrumentationBrowserRelayInstanceDeleteSubject,
+	}
+}
+
 // GetObservabilitySubjects returns the NATS subjects
 // for all observability objects.
 func GetObservabilitySubjects() []string {
@@ -139,6 +259,14 @@ func GetObservabilitySubjects() []string {
 	observabilitySubjects = append(observabilitySubjects, GetMetricsInstanceSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetLoggingDefinitionSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetLoggingInstanceSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetTracingDefinitionSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetTracingInstanceSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetInstrumentationAgentDefinitionSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetInstrumentationAgentInstanceSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetInstrumentationGatewayDefinitionSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetInstrumentationGatewayInstanceSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetInstrumentationBrowserRelayDefinitionSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetInstrumentationBrowserRelayInstanceSubjects()...)
 
 	return observabilitySubjects
 }

@@ -179,6 +179,72 @@ func GetCoreObjectNamesByIDs(db *gorm.DB, objectType string, ids []uint, include
 			}
 		}
 
+	case "threeport.io/v0.InstrumentationAgentDefinition":
+		var rows []v0.InstrumentationAgentDefinition
+		if err := db.Model(&v0.InstrumentationAgentDefinition{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationAgentDefinition names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
+	case "threeport.io/v0.InstrumentationAgentInstance":
+		var rows []v0.InstrumentationAgentInstance
+		if err := db.Model(&v0.InstrumentationAgentInstance{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationAgentInstance names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
+	case "threeport.io/v0.InstrumentationBrowserRelayDefinition":
+		var rows []v0.InstrumentationBrowserRelayDefinition
+		if err := db.Model(&v0.InstrumentationBrowserRelayDefinition{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationBrowserRelayDefinition names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
+	case "threeport.io/v0.InstrumentationBrowserRelayInstance":
+		var rows []v0.InstrumentationBrowserRelayInstance
+		if err := db.Model(&v0.InstrumentationBrowserRelayInstance{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationBrowserRelayInstance names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
+	case "threeport.io/v0.InstrumentationGatewayDefinition":
+		var rows []v0.InstrumentationGatewayDefinition
+		if err := db.Model(&v0.InstrumentationGatewayDefinition{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationGatewayDefinition names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
+	case "threeport.io/v0.InstrumentationGatewayInstance":
+		var rows []v0.InstrumentationGatewayInstance
+		if err := db.Model(&v0.InstrumentationGatewayInstance{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationGatewayInstance names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
 	case "threeport.io/v0.KubernetesRuntimeDefinition":
 		var rows []v0.KubernetesRuntimeDefinition
 		if err := db.Model(&v0.KubernetesRuntimeDefinition{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
@@ -520,6 +586,28 @@ func GetCoreObjectNamesByIDs(db *gorm.DB, objectType string, ids []uint, include
 			}
 		}
 
+	case "threeport.io/v0.TracingDefinition":
+		var rows []v0.TracingDefinition
+		if err := db.Model(&v0.TracingDefinition{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up TracingDefinition names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
+	case "threeport.io/v0.TracingInstance":
+		var rows []v0.TracingInstance
+		if err := db.Model(&v0.TracingInstance{}).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up TracingInstance names: %w", err)
+		}
+		for _, r := range rows {
+			if r.ID != nil && r.Name != nil {
+				out[*r.ID] = *r.Name
+			}
+		}
+
 	default:
 		return nil, ErrUnknownCoreType
 	}
@@ -705,6 +793,84 @@ func GetCoreObjectIDsByName(db *gorm.DB, objectType string, name string) ([]uint
 		var rows []v0.HelmWorkloadInstance
 		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
 			return nil, fmt.Errorf("failed to look up HelmWorkloadInstance by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.InstrumentationAgentDefinition":
+		var rows []v0.InstrumentationAgentDefinition
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationAgentDefinition by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.InstrumentationAgentInstance":
+		var rows []v0.InstrumentationAgentInstance
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationAgentInstance by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.InstrumentationBrowserRelayDefinition":
+		var rows []v0.InstrumentationBrowserRelayDefinition
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationBrowserRelayDefinition by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.InstrumentationBrowserRelayInstance":
+		var rows []v0.InstrumentationBrowserRelayInstance
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationBrowserRelayInstance by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.InstrumentationGatewayDefinition":
+		var rows []v0.InstrumentationGatewayDefinition
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationGatewayDefinition by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.InstrumentationGatewayInstance":
+		var rows []v0.InstrumentationGatewayInstance
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up InstrumentationGatewayInstance by name: %w", err)
 		}
 		ids := make([]uint, 0, len(rows))
 		for _, r := range rows {
@@ -1108,6 +1274,32 @@ func GetCoreObjectIDsByName(db *gorm.DB, objectType string, name string) ([]uint
 		var rows []v0.Tier
 		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
 			return nil, fmt.Errorf("failed to look up Tier by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.TracingDefinition":
+		var rows []v0.TracingDefinition
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up TracingDefinition by name: %w", err)
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, r := range rows {
+			if r.ID != nil {
+				ids = append(ids, *r.ID)
+			}
+		}
+		return ids, nil
+
+	case "threeport.io/v0.TracingInstance":
+		var rows []v0.TracingInstance
+		if err := db.Select("id").Where("name = ?", name).Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to look up TracingInstance by name: %w", err)
 		}
 		ids := make([]uint, 0, len(rows))
 		for _, r := range rows {
