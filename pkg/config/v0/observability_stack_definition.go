@@ -26,12 +26,20 @@ type ObservabilityStackDefinitionValues struct {
 	Name                                  *string `json:",omitempty"`
 	GrafanaHelmValues                     *string `json:",omitempty"`
 	GrafanaHelmValuesDocument             *string `json:",omitempty"`
-	LokiHelmValues                        *string `json:",omitempty"`
-	LokiHelmValuesDocument                *string `json:",omitempty"`
-	PromtailHelmValues                    *string `json:",omitempty"`
-	PromtailHelmValuesDocument            *string `json:",omitempty"`
 	KubePrometheusStackHelmValues         *string `json:",omitempty"`
 	KubePrometheusStackHelmValuesDocument *string `json:",omitempty"`
+	MimirHelmValues                       *string `json:",omitempty"`
+	MimirHelmValuesDocument               *string `json:",omitempty"`
+	LokiHelmValues                        *string `json:",omitempty"`
+	LokiHelmValuesDocument                *string `json:",omitempty"`
+	TempoHelmValues                       *string `json:",omitempty"`
+	TempoHelmValuesDocument               *string `json:",omitempty"`
+	OtelAgentHelmValues                   *string `json:",omitempty"`
+	OtelAgentHelmValuesDocument           *string `json:",omitempty"`
+	OtelGatewayHelmValues                 *string `json:",omitempty"`
+	OtelGatewayHelmValuesDocument         *string `json:",omitempty"`
+	OtelBrowserRelayHelmValues            *string `json:",omitempty"`
+	OtelBrowserRelayHelmValuesDocument    *string `json:",omitempty"`
 	ObservabilityConfigPath               *string `json:",omitempty"`
 	Age                                   *string `json:",omitempty"`
 }
@@ -70,9 +78,13 @@ func (o *ObservabilityStackDefinitionConfig) Get(
 			ObservabilityStackDefinition: ObservabilityStackDefinitionValues{
 				Name:                                  observabilityStackDefinition.Name,
 				GrafanaHelmValuesDocument:             observabilityStackDefinition.GrafanaHelmValuesDocument,
-				LokiHelmValuesDocument:                observabilityStackDefinition.LokiHelmValuesDocument,
-				PromtailHelmValuesDocument:            observabilityStackDefinition.PromtailHelmValuesDocument,
 				KubePrometheusStackHelmValuesDocument: observabilityStackDefinition.KubePrometheusStackHelmValuesDocument,
+				MimirHelmValuesDocument:               observabilityStackDefinition.MimirHelmValuesDocument,
+				LokiHelmValuesDocument:                observabilityStackDefinition.LokiHelmValuesDocument,
+				TempoHelmValuesDocument:               observabilityStackDefinition.TempoHelmValuesDocument,
+				OtelAgentHelmValuesDocument:           observabilityStackDefinition.OtelAgentHelmValuesDocument,
+				OtelGatewayHelmValuesDocument:         observabilityStackDefinition.OtelGatewayHelmValuesDocument,
+				OtelBrowserRelayHelmValuesDocument:    observabilityStackDefinition.OtelBrowserRelayHelmValuesDocument,
 				Age:                                   util.Ptr(util.GetAgeFormatted(observabilityStackDefinition.CreatedAt)),
 			},
 		}
@@ -111,6 +123,28 @@ func (o *ObservabilityStackDefinitionConfig) Create(
 	}
 	observabilityStackDefinition.GrafanaHelmValuesDocument = grafanaHelmValuesDocument
 
+	// set kube-prometheus-stack helm values if present
+	kubePrometheusStackHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.KubePrometheusStackHelmValues,
+		observabilityStackDefinitionValues.KubePrometheusStackHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kube-prometheus-stack values document from path: %w", err)
+	}
+	observabilityStackDefinition.KubePrometheusStackHelmValuesDocument = kubePrometheusStackHelmValuesDocument
+
+	// set mimir helm values if present
+	mimirHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.MimirHelmValues,
+		observabilityStackDefinitionValues.MimirHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get mimir values document from path: %w", err)
+	}
+	observabilityStackDefinition.MimirHelmValuesDocument = mimirHelmValuesDocument
+
 	// set loki helm values if present
 	lokiHelmValuesDocument, err := GetValuesFromDocumentOrInline(
 		observabilityStackDefinitionValues.LokiHelmValues,
@@ -122,27 +156,49 @@ func (o *ObservabilityStackDefinitionConfig) Create(
 	}
 	observabilityStackDefinition.LokiHelmValuesDocument = lokiHelmValuesDocument
 
-	// set promtail helm values if present
-	promtailHelmValuesDocument, err := GetValuesFromDocumentOrInline(
-		observabilityStackDefinitionValues.PromtailHelmValues,
-		observabilityStackDefinitionValues.PromtailHelmValuesDocument,
+	// set tempo helm values if present
+	tempoHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.TempoHelmValues,
+		observabilityStackDefinitionValues.TempoHelmValuesDocument,
 		observabilityStackDefinitionValues.ObservabilityConfigPath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get promtail values document from path: %w", err)
+		return nil, fmt.Errorf("failed to get tempo values document from path: %w", err)
 	}
-	observabilityStackDefinition.PromtailHelmValuesDocument = promtailHelmValuesDocument
+	observabilityStackDefinition.TempoHelmValuesDocument = tempoHelmValuesDocument
 
-	// set kube-prometheus-stack helm values if present
-	kubePrometheusStackHelmValuesDocument, err := GetValuesFromDocumentOrInline(
-		observabilityStackDefinitionValues.KubePrometheusStackHelmValues,
-		observabilityStackDefinitionValues.KubePrometheusStackHelmValuesDocument,
+	// set otel agent helm values if present
+	otelAgentHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.OtelAgentHelmValues,
+		observabilityStackDefinitionValues.OtelAgentHelmValuesDocument,
 		observabilityStackDefinitionValues.ObservabilityConfigPath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kube-prometheus-stack values document from path: %w", err)
+		return nil, fmt.Errorf("failed to get otel agent values document from path: %w", err)
 	}
-	observabilityStackDefinition.KubePrometheusStackHelmValuesDocument = kubePrometheusStackHelmValuesDocument
+	observabilityStackDefinition.OtelAgentHelmValuesDocument = otelAgentHelmValuesDocument
+
+	// set otel gateway helm values if present
+	otelGatewayHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.OtelGatewayHelmValues,
+		observabilityStackDefinitionValues.OtelGatewayHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get otel gateway values document from path: %w", err)
+	}
+	observabilityStackDefinition.OtelGatewayHelmValuesDocument = otelGatewayHelmValuesDocument
+
+	// set otel browser relay helm values if present
+	otelBrowserRelayHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.OtelBrowserRelayHelmValues,
+		observabilityStackDefinitionValues.OtelBrowserRelayHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get otel browser relay values document from path: %w", err)
+	}
+	observabilityStackDefinition.OtelBrowserRelayHelmValuesDocument = otelBrowserRelayHelmValuesDocument
 
 	// create observability stack definition
 	createdObservabilityStackDefinition, err := client_v0.CreateObservabilityStackDefinition(
@@ -161,12 +217,20 @@ func (o *ObservabilityStackDefinitionConfig) Create(
 			Name:                                  createdObservabilityStackDefinition.Name,
 			GrafanaHelmValues:                     observabilityStackDefinitionValues.GrafanaHelmValues,
 			GrafanaHelmValuesDocument:             createdObservabilityStackDefinition.GrafanaHelmValuesDocument,
-			LokiHelmValues:                        observabilityStackDefinitionValues.LokiHelmValues,
-			LokiHelmValuesDocument:                createdObservabilityStackDefinition.LokiHelmValuesDocument,
-			PromtailHelmValues:                    observabilityStackDefinitionValues.PromtailHelmValues,
-			PromtailHelmValuesDocument:            createdObservabilityStackDefinition.PromtailHelmValuesDocument,
 			KubePrometheusStackHelmValues:         observabilityStackDefinitionValues.KubePrometheusStackHelmValues,
 			KubePrometheusStackHelmValuesDocument: createdObservabilityStackDefinition.KubePrometheusStackHelmValuesDocument,
+			MimirHelmValues:                       observabilityStackDefinitionValues.MimirHelmValues,
+			MimirHelmValuesDocument:               createdObservabilityStackDefinition.MimirHelmValuesDocument,
+			LokiHelmValues:                        observabilityStackDefinitionValues.LokiHelmValues,
+			LokiHelmValuesDocument:                createdObservabilityStackDefinition.LokiHelmValuesDocument,
+			TempoHelmValues:                       observabilityStackDefinitionValues.TempoHelmValues,
+			TempoHelmValuesDocument:               createdObservabilityStackDefinition.TempoHelmValuesDocument,
+			OtelAgentHelmValues:                   observabilityStackDefinitionValues.OtelAgentHelmValues,
+			OtelAgentHelmValuesDocument:           createdObservabilityStackDefinition.OtelAgentHelmValuesDocument,
+			OtelGatewayHelmValues:                 observabilityStackDefinitionValues.OtelGatewayHelmValues,
+			OtelGatewayHelmValuesDocument:         createdObservabilityStackDefinition.OtelGatewayHelmValuesDocument,
+			OtelBrowserRelayHelmValues:            observabilityStackDefinitionValues.OtelBrowserRelayHelmValues,
+			OtelBrowserRelayHelmValuesDocument:    createdObservabilityStackDefinition.OtelBrowserRelayHelmValuesDocument,
 			ObservabilityConfigPath:               observabilityStackDefinitionValues.ObservabilityConfigPath,
 		},
 	}
@@ -220,6 +284,28 @@ func (o *ObservabilityStackDefinitionConfig) Replace(
 	}
 	updatedObservabilityStackDefinition.GrafanaHelmValuesDocument = grafanaHelmValuesDocument
 
+	// set kube-prometheus-stack helm values if present
+	kubePrometheusStackHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.KubePrometheusStackHelmValues,
+		observabilityStackDefinitionValues.KubePrometheusStackHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kube-prometheus-stack values document from path: %w", err)
+	}
+	updatedObservabilityStackDefinition.KubePrometheusStackHelmValuesDocument = kubePrometheusStackHelmValuesDocument
+
+	// set mimir helm values if present
+	mimirHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.MimirHelmValues,
+		observabilityStackDefinitionValues.MimirHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get mimir values document from path: %w", err)
+	}
+	updatedObservabilityStackDefinition.MimirHelmValuesDocument = mimirHelmValuesDocument
+
 	// set loki helm values if present
 	lokiHelmValuesDocument, err := GetValuesFromDocumentOrInline(
 		observabilityStackDefinitionValues.LokiHelmValues,
@@ -231,27 +317,49 @@ func (o *ObservabilityStackDefinitionConfig) Replace(
 	}
 	updatedObservabilityStackDefinition.LokiHelmValuesDocument = lokiHelmValuesDocument
 
-	// set promtail helm values if present
-	promtailHelmValuesDocument, err := GetValuesFromDocumentOrInline(
-		observabilityStackDefinitionValues.PromtailHelmValues,
-		observabilityStackDefinitionValues.PromtailHelmValuesDocument,
+	// set tempo helm values if present
+	tempoHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.TempoHelmValues,
+		observabilityStackDefinitionValues.TempoHelmValuesDocument,
 		observabilityStackDefinitionValues.ObservabilityConfigPath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get promtail values document from path: %w", err)
+		return nil, fmt.Errorf("failed to get tempo values document from path: %w", err)
 	}
-	updatedObservabilityStackDefinition.PromtailHelmValuesDocument = promtailHelmValuesDocument
+	updatedObservabilityStackDefinition.TempoHelmValuesDocument = tempoHelmValuesDocument
 
-	// set kube-prometheus-stack helm values if present
-	kubePrometheusStackHelmValuesDocument, err := GetValuesFromDocumentOrInline(
-		observabilityStackDefinitionValues.KubePrometheusStackHelmValues,
-		observabilityStackDefinitionValues.KubePrometheusStackHelmValuesDocument,
+	// set otel agent helm values if present
+	otelAgentHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.OtelAgentHelmValues,
+		observabilityStackDefinitionValues.OtelAgentHelmValuesDocument,
 		observabilityStackDefinitionValues.ObservabilityConfigPath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kube-prometheus-stack values document from path: %w", err)
+		return nil, fmt.Errorf("failed to get otel agent values document from path: %w", err)
 	}
-	updatedObservabilityStackDefinition.KubePrometheusStackHelmValuesDocument = kubePrometheusStackHelmValuesDocument
+	updatedObservabilityStackDefinition.OtelAgentHelmValuesDocument = otelAgentHelmValuesDocument
+
+	// set otel gateway helm values if present
+	otelGatewayHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.OtelGatewayHelmValues,
+		observabilityStackDefinitionValues.OtelGatewayHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get otel gateway values document from path: %w", err)
+	}
+	updatedObservabilityStackDefinition.OtelGatewayHelmValuesDocument = otelGatewayHelmValuesDocument
+
+	// set otel browser relay helm values if present
+	otelBrowserRelayHelmValuesDocument, err := GetValuesFromDocumentOrInline(
+		observabilityStackDefinitionValues.OtelBrowserRelayHelmValues,
+		observabilityStackDefinitionValues.OtelBrowserRelayHelmValuesDocument,
+		observabilityStackDefinitionValues.ObservabilityConfigPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get otel browser relay values document from path: %w", err)
+	}
+	updatedObservabilityStackDefinition.OtelBrowserRelayHelmValuesDocument = otelBrowserRelayHelmValuesDocument
 
 	// replace observability stack definition
 	replacedObservabilityStackDefinition, err := client_v0.ReplaceObservabilityStackDefinition(
@@ -270,12 +378,20 @@ func (o *ObservabilityStackDefinitionConfig) Replace(
 			Name:                                  replacedObservabilityStackDefinition.Name,
 			GrafanaHelmValues:                     observabilityStackDefinitionValues.GrafanaHelmValues,
 			GrafanaHelmValuesDocument:             replacedObservabilityStackDefinition.GrafanaHelmValuesDocument,
-			LokiHelmValues:                        observabilityStackDefinitionValues.LokiHelmValues,
-			LokiHelmValuesDocument:                replacedObservabilityStackDefinition.LokiHelmValuesDocument,
-			PromtailHelmValues:                    observabilityStackDefinitionValues.PromtailHelmValues,
-			PromtailHelmValuesDocument:            replacedObservabilityStackDefinition.PromtailHelmValuesDocument,
 			KubePrometheusStackHelmValues:         observabilityStackDefinitionValues.KubePrometheusStackHelmValues,
 			KubePrometheusStackHelmValuesDocument: replacedObservabilityStackDefinition.KubePrometheusStackHelmValuesDocument,
+			MimirHelmValues:                       observabilityStackDefinitionValues.MimirHelmValues,
+			MimirHelmValuesDocument:               replacedObservabilityStackDefinition.MimirHelmValuesDocument,
+			LokiHelmValues:                        observabilityStackDefinitionValues.LokiHelmValues,
+			LokiHelmValuesDocument:                replacedObservabilityStackDefinition.LokiHelmValuesDocument,
+			TempoHelmValues:                       observabilityStackDefinitionValues.TempoHelmValues,
+			TempoHelmValuesDocument:               replacedObservabilityStackDefinition.TempoHelmValuesDocument,
+			OtelAgentHelmValues:                   observabilityStackDefinitionValues.OtelAgentHelmValues,
+			OtelAgentHelmValuesDocument:           replacedObservabilityStackDefinition.OtelAgentHelmValuesDocument,
+			OtelGatewayHelmValues:                 observabilityStackDefinitionValues.OtelGatewayHelmValues,
+			OtelGatewayHelmValuesDocument:         replacedObservabilityStackDefinition.OtelGatewayHelmValuesDocument,
+			OtelBrowserRelayHelmValues:            observabilityStackDefinitionValues.OtelBrowserRelayHelmValues,
+			OtelBrowserRelayHelmValuesDocument:    replacedObservabilityStackDefinition.OtelBrowserRelayHelmValuesDocument,
 			ObservabilityConfigPath:               observabilityStackDefinitionValues.ObservabilityConfigPath,
 		},
 	}
@@ -314,9 +430,13 @@ func (o *ObservabilityStackDefinitionConfig) Delete(
 		ObservabilityStackDefinition: ObservabilityStackDefinitionValues{
 			Name:                                  deletedObservabilityStackDefinition.Name,
 			GrafanaHelmValuesDocument:             deletedObservabilityStackDefinition.GrafanaHelmValuesDocument,
-			LokiHelmValuesDocument:                deletedObservabilityStackDefinition.LokiHelmValuesDocument,
-			PromtailHelmValuesDocument:            deletedObservabilityStackDefinition.PromtailHelmValuesDocument,
 			KubePrometheusStackHelmValuesDocument: deletedObservabilityStackDefinition.KubePrometheusStackHelmValuesDocument,
+			MimirHelmValuesDocument:               deletedObservabilityStackDefinition.MimirHelmValuesDocument,
+			LokiHelmValuesDocument:                deletedObservabilityStackDefinition.LokiHelmValuesDocument,
+			TempoHelmValuesDocument:               deletedObservabilityStackDefinition.TempoHelmValuesDocument,
+			OtelAgentHelmValuesDocument:           deletedObservabilityStackDefinition.OtelAgentHelmValuesDocument,
+			OtelGatewayHelmValuesDocument:         deletedObservabilityStackDefinition.OtelGatewayHelmValuesDocument,
+			OtelBrowserRelayHelmValuesDocument:    deletedObservabilityStackDefinition.OtelBrowserRelayHelmValuesDocument,
 		},
 	}
 
@@ -338,19 +458,39 @@ func (o *ObservabilityStackDefinitionConfig) Validate() error {
 		multiError.AppendError(fmt.Errorf("GrafanaHelmValues and GrafanaHelmValuesDocument cannot both be set"))
 	}
 
+	// ensure kube-prometheus-stack helm values and document are not both set
+	if observabilityStackDefinitionValues.KubePrometheusStackHelmValues != nil && observabilityStackDefinitionValues.KubePrometheusStackHelmValuesDocument != nil {
+		multiError.AppendError(fmt.Errorf("KubePrometheusStackHelmValues and KubePrometheusStackHelmValuesDocument cannot both be set"))
+	}
+
+	// ensure mimir helm values and document are not both set
+	if observabilityStackDefinitionValues.MimirHelmValues != nil && observabilityStackDefinitionValues.MimirHelmValuesDocument != nil {
+		multiError.AppendError(fmt.Errorf("MimirHelmValues and MimirHelmValuesDocument cannot both be set"))
+	}
+
 	// ensure loki helm values and document are not both set
 	if observabilityStackDefinitionValues.LokiHelmValues != nil && observabilityStackDefinitionValues.LokiHelmValuesDocument != nil {
 		multiError.AppendError(fmt.Errorf("LokiHelmValues and LokiHelmValuesDocument cannot both be set"))
 	}
 
-	// ensure promtail helm values and document are not both set
-	if observabilityStackDefinitionValues.PromtailHelmValues != nil && observabilityStackDefinitionValues.PromtailHelmValuesDocument != nil {
-		multiError.AppendError(fmt.Errorf("PromtailHelmValues and PromtailHelmValuesDocument cannot both be set"))
+	// ensure tempo helm values and document are not both set
+	if observabilityStackDefinitionValues.TempoHelmValues != nil && observabilityStackDefinitionValues.TempoHelmValuesDocument != nil {
+		multiError.AppendError(fmt.Errorf("TempoHelmValues and TempoHelmValuesDocument cannot both be set"))
 	}
 
-	// ensure kube-prometheus-stack helm values and document are not both set
-	if observabilityStackDefinitionValues.KubePrometheusStackHelmValues != nil && observabilityStackDefinitionValues.KubePrometheusStackHelmValuesDocument != nil {
-		multiError.AppendError(fmt.Errorf("KubePrometheusStackHelmValues and KubePrometheusStackHelmValuesDocument cannot both be set"))
+	// ensure otel agent helm values and document are not both set
+	if observabilityStackDefinitionValues.OtelAgentHelmValues != nil && observabilityStackDefinitionValues.OtelAgentHelmValuesDocument != nil {
+		multiError.AppendError(fmt.Errorf("OtelAgentHelmValues and OtelAgentHelmValuesDocument cannot both be set"))
+	}
+
+	// ensure otel gateway helm values and document are not both set
+	if observabilityStackDefinitionValues.OtelGatewayHelmValues != nil && observabilityStackDefinitionValues.OtelGatewayHelmValuesDocument != nil {
+		multiError.AppendError(fmt.Errorf("OtelGatewayHelmValues and OtelGatewayHelmValuesDocument cannot both be set"))
+	}
+
+	// ensure otel browser relay helm values and document are not both set
+	if observabilityStackDefinitionValues.OtelBrowserRelayHelmValues != nil && observabilityStackDefinitionValues.OtelBrowserRelayHelmValuesDocument != nil {
+		multiError.AppendError(fmt.Errorf("OtelBrowserRelayHelmValues and OtelBrowserRelayHelmValuesDocument cannot both be set"))
 	}
 
 	return multiError.Error()

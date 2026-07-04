@@ -24,15 +24,28 @@ type ObservabilityStackValues struct {
 	Name                                  *string                          `json:",omitempty"`
 	KubernetesRuntimeInstance             *KubernetesRuntimeInstanceValues `json:",omitempty"`
 	MetricsEnabled                        *bool                            `json:",omitempty"`
+	MetricsStorageEnabled                 *bool                            `json:",omitempty"`
 	LoggingEnabled                        *bool                            `json:",omitempty"`
+	TracingEnabled                        *bool                            `json:",omitempty"`
+	InstrumentationAgentEnabled           *bool                            `json:",omitempty"`
+	InstrumentationGatewayEnabled         *bool                            `json:",omitempty"`
+	InstrumentationBrowserRelayEnabled    *bool                            `json:",omitempty"`
 	GrafanaHelmValues                     *string                          `json:",omitempty"`
 	GrafanaHelmValuesDocument             *string                          `json:",omitempty"`
-	LokiHelmValues                        *string                          `json:",omitempty"`
-	LokiHelmValuesDocument                *string                          `json:",omitempty"`
-	PromtailHelmValues                    *string                          `json:",omitempty"`
-	PromtailHelmValuesDocument            *string                          `json:",omitempty"`
 	KubePrometheusStackHelmValues         *string                          `json:",omitempty"`
 	KubePrometheusStackHelmValuesDocument *string                          `json:",omitempty"`
+	MimirHelmValues                       *string                          `json:",omitempty"`
+	MimirHelmValuesDocument               *string                          `json:",omitempty"`
+	LokiHelmValues                        *string                          `json:",omitempty"`
+	LokiHelmValuesDocument                *string                          `json:",omitempty"`
+	TempoHelmValues                       *string                          `json:",omitempty"`
+	TempoHelmValuesDocument               *string                          `json:",omitempty"`
+	OtelAgentHelmValues                   *string                          `json:",omitempty"`
+	OtelAgentHelmValuesDocument           *string                          `json:",omitempty"`
+	OtelGatewayHelmValues                 *string                          `json:",omitempty"`
+	OtelGatewayHelmValuesDocument         *string                          `json:",omitempty"`
+	OtelBrowserRelayHelmValues            *string                          `json:",omitempty"`
+	OtelBrowserRelayHelmValuesDocument    *string                          `json:",omitempty"`
 	ObservabilityConfigPath               *string                          `json:",omitempty"`
 	Age                                   *string                          `json:",omitempty"`
 }
@@ -176,12 +189,20 @@ func (o *ObservabilityStackConfig) GetOperations(
 			Name:                                  observabilityStackValues.Name,
 			GrafanaHelmValues:                     observabilityStackValues.GrafanaHelmValues,
 			GrafanaHelmValuesDocument:             observabilityStackValues.GrafanaHelmValuesDocument,
-			LokiHelmValues:                        observabilityStackValues.LokiHelmValues,
-			LokiHelmValuesDocument:                observabilityStackValues.LokiHelmValuesDocument,
-			PromtailHelmValues:                    observabilityStackValues.PromtailHelmValues,
-			PromtailHelmValuesDocument:            observabilityStackValues.PromtailHelmValuesDocument,
 			KubePrometheusStackHelmValues:         observabilityStackValues.KubePrometheusStackHelmValues,
 			KubePrometheusStackHelmValuesDocument: observabilityStackValues.KubePrometheusStackHelmValuesDocument,
+			MimirHelmValues:                       observabilityStackValues.MimirHelmValues,
+			MimirHelmValuesDocument:               observabilityStackValues.MimirHelmValuesDocument,
+			LokiHelmValues:                        observabilityStackValues.LokiHelmValues,
+			LokiHelmValuesDocument:                observabilityStackValues.LokiHelmValuesDocument,
+			TempoHelmValues:                       observabilityStackValues.TempoHelmValues,
+			TempoHelmValuesDocument:               observabilityStackValues.TempoHelmValuesDocument,
+			OtelAgentHelmValues:                   observabilityStackValues.OtelAgentHelmValues,
+			OtelAgentHelmValuesDocument:           observabilityStackValues.OtelAgentHelmValuesDocument,
+			OtelGatewayHelmValues:                 observabilityStackValues.OtelGatewayHelmValues,
+			OtelGatewayHelmValuesDocument:         observabilityStackValues.OtelGatewayHelmValuesDocument,
+			OtelBrowserRelayHelmValues:            observabilityStackValues.OtelBrowserRelayHelmValues,
+			OtelBrowserRelayHelmValuesDocument:    observabilityStackValues.OtelBrowserRelayHelmValuesDocument,
 			ObservabilityConfigPath:               observabilityStackValues.ObservabilityConfigPath,
 		},
 	}
@@ -226,15 +247,28 @@ func (o *ObservabilityStackConfig) GetOperations(
 			Name:                                  observabilityStackValues.Name,
 			KubernetesRuntimeInstance:             observabilityStackValues.KubernetesRuntimeInstance,
 			MetricsEnabled:                        observabilityStackValues.MetricsEnabled,
+			MetricsStorageEnabled:                 observabilityStackValues.MetricsStorageEnabled,
 			LoggingEnabled:                        observabilityStackValues.LoggingEnabled,
+			TracingEnabled:                        observabilityStackValues.TracingEnabled,
+			InstrumentationAgentEnabled:           observabilityStackValues.InstrumentationAgentEnabled,
+			InstrumentationGatewayEnabled:         observabilityStackValues.InstrumentationGatewayEnabled,
+			InstrumentationBrowserRelayEnabled:    observabilityStackValues.InstrumentationBrowserRelayEnabled,
 			GrafanaHelmValues:                     observabilityStackValues.GrafanaHelmValues,
 			GrafanaHelmValuesDocument:             observabilityStackValues.GrafanaHelmValuesDocument,
-			LokiHelmValues:                        observabilityStackValues.LokiHelmValues,
-			LokiHelmValuesDocument:                observabilityStackValues.LokiHelmValuesDocument,
-			PromtailHelmValues:                    observabilityStackValues.PromtailHelmValues,
-			PromtailHelmValuesDocument:            observabilityStackValues.PromtailHelmValuesDocument,
 			KubePrometheusStackHelmValues:         observabilityStackValues.KubePrometheusStackHelmValues,
 			KubePrometheusStackHelmValuesDocument: observabilityStackValues.KubePrometheusStackHelmValuesDocument,
+			MimirHelmValues:                       observabilityStackValues.MimirHelmValues,
+			MimirHelmValuesDocument:               observabilityStackValues.MimirHelmValuesDocument,
+			LokiHelmValues:                        observabilityStackValues.LokiHelmValues,
+			LokiHelmValuesDocument:                observabilityStackValues.LokiHelmValuesDocument,
+			TempoHelmValues:                       observabilityStackValues.TempoHelmValues,
+			TempoHelmValuesDocument:               observabilityStackValues.TempoHelmValuesDocument,
+			OtelAgentHelmValues:                   observabilityStackValues.OtelAgentHelmValues,
+			OtelAgentHelmValuesDocument:           observabilityStackValues.OtelAgentHelmValuesDocument,
+			OtelGatewayHelmValues:                 observabilityStackValues.OtelGatewayHelmValues,
+			OtelGatewayHelmValuesDocument:         observabilityStackValues.OtelGatewayHelmValuesDocument,
+			OtelBrowserRelayHelmValues:            observabilityStackValues.OtelBrowserRelayHelmValues,
+			OtelBrowserRelayHelmValuesDocument:    observabilityStackValues.OtelBrowserRelayHelmValuesDocument,
 			ObservabilityConfigPath:               observabilityStackValues.ObservabilityConfigPath,
 			ObservabilityStackDefinition:          &observabilityStackDefinitionConfig.ObservabilityStackDefinition,
 		},
@@ -296,15 +330,28 @@ func mapToObservabilityStackDefinedInstances(
 						Name:                                  inst.ObservabilityStackInstance.Name,
 						KubernetesRuntimeInstance:             inst.ObservabilityStackInstance.KubernetesRuntimeInstance,
 						MetricsEnabled:                        inst.ObservabilityStackInstance.MetricsEnabled,
+						MetricsStorageEnabled:                 inst.ObservabilityStackInstance.MetricsStorageEnabled,
 						LoggingEnabled:                        inst.ObservabilityStackInstance.LoggingEnabled,
+						TracingEnabled:                        inst.ObservabilityStackInstance.TracingEnabled,
+						InstrumentationAgentEnabled:           inst.ObservabilityStackInstance.InstrumentationAgentEnabled,
+						InstrumentationGatewayEnabled:         inst.ObservabilityStackInstance.InstrumentationGatewayEnabled,
+						InstrumentationBrowserRelayEnabled:    inst.ObservabilityStackInstance.InstrumentationBrowserRelayEnabled,
 						GrafanaHelmValues:                     def.ObservabilityStackDefinition.GrafanaHelmValues,
 						GrafanaHelmValuesDocument:             def.ObservabilityStackDefinition.GrafanaHelmValuesDocument,
-						LokiHelmValues:                        def.ObservabilityStackDefinition.LokiHelmValues,
-						LokiHelmValuesDocument:                def.ObservabilityStackDefinition.LokiHelmValuesDocument,
-						PromtailHelmValues:                    def.ObservabilityStackDefinition.PromtailHelmValues,
-						PromtailHelmValuesDocument:            def.ObservabilityStackDefinition.PromtailHelmValuesDocument,
 						KubePrometheusStackHelmValues:         def.ObservabilityStackDefinition.KubePrometheusStackHelmValues,
 						KubePrometheusStackHelmValuesDocument: def.ObservabilityStackDefinition.KubePrometheusStackHelmValuesDocument,
+						MimirHelmValues:                       def.ObservabilityStackDefinition.MimirHelmValues,
+						MimirHelmValuesDocument:               def.ObservabilityStackDefinition.MimirHelmValuesDocument,
+						LokiHelmValues:                        def.ObservabilityStackDefinition.LokiHelmValues,
+						LokiHelmValuesDocument:                def.ObservabilityStackDefinition.LokiHelmValuesDocument,
+						TempoHelmValues:                       def.ObservabilityStackDefinition.TempoHelmValues,
+						TempoHelmValuesDocument:               def.ObservabilityStackDefinition.TempoHelmValuesDocument,
+						OtelAgentHelmValues:                   def.ObservabilityStackDefinition.OtelAgentHelmValues,
+						OtelAgentHelmValuesDocument:           def.ObservabilityStackDefinition.OtelAgentHelmValuesDocument,
+						OtelGatewayHelmValues:                 def.ObservabilityStackDefinition.OtelGatewayHelmValues,
+						OtelGatewayHelmValuesDocument:         def.ObservabilityStackDefinition.OtelGatewayHelmValuesDocument,
+						OtelBrowserRelayHelmValues:            def.ObservabilityStackDefinition.OtelBrowserRelayHelmValues,
+						OtelBrowserRelayHelmValuesDocument:    def.ObservabilityStackDefinition.OtelBrowserRelayHelmValuesDocument,
 						ObservabilityConfigPath:               def.ObservabilityStackDefinition.ObservabilityConfigPath,
 						Age:                                   inst.ObservabilityStackInstance.Age,
 					},
