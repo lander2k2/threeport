@@ -5418,6 +5418,1086 @@ func (h Handler) DeleteMetricsInstance(c echo.Context) error {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// MetricsStorageDefinition
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetMetricsStorageDefinitionVersions gets the supported versions for the metrics storage definition API.
+// @Description Get the supported API versions for metrics storage definitions.
+// @ID metricsStorageDefinition-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /metrics-storage-definitions/versions [GET]
+func (h Handler) GetMetricsStorageDefinitionVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeMetricsStorageDefinition)])
+}
+
+// @Summary adds a new metrics storage definition.
+// @Description Add a new metrics storage definition to the Threeport database.
+// @ID add-v0-metricsStorageDefinition
+// @Accept json
+// @Produce json
+// @Param metricsStorageDefinition body api_v0.MetricsStorageDefinition true "MetricsStorageDefinition object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-definitions [POST]
+func (h Handler) AddMetricsStorageDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageDefinition
+	var metricsStorageDefinition api_v0.MetricsStorageDefinition
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, metricsStorageDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&metricsStorageDefinition); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, metricsStorageDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingMetricsStorageDefinition api_v0.MetricsStorageDefinition
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", metricsStorageDefinition.Name).First(&existingMetricsStorageDefinition)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&metricsStorageDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*metricsStorageDefinition.Reconciled {
+		notifPayload, err := metricsStorageDefinition.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.MetricsStorageDefinitionCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		metricsStorageDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all metrics storage definitions.
+// @Description Get all metrics storage definitions from the Threeport database.
+// @ID get-v0-metricsStorageDefinitions
+// @Accept json
+// @Produce json
+// @Param name query string false "metrics storage definition search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-definitions [GET]
+func (h Handler) GetMetricsStorageDefinitions(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageDefinition
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.MetricsStorageDefinition
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.MetricsStorageDefinition{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.MetricsStorageDefinition{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a metrics storage definition.
+// @Description Get a particular metrics storage definition from the database.
+// @ID get-v0-metricsStorageDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-definitions/{id} [GET]
+func (h Handler) GetMetricsStorageDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageDefinition
+	metricsStorageDefinitionID := c.Param("id")
+	var metricsStorageDefinition api_v0.MetricsStorageDefinition
+	if result := h.RequestDB(c).
+		First(&metricsStorageDefinition, metricsStorageDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		metricsStorageDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing metrics storage definition.
+// @Description Update a metrics storage definition in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating metrics storage definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-metricsStorageDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param metricsStorageDefinition body api_v0.MetricsStorageDefinition true "MetricsStorageDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-definitions/{id} [PATCH]
+func (h Handler) UpdateMetricsStorageDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageDefinition
+	metricsStorageDefinitionID := c.Param("id")
+	var existingMetricsStorageDefinition api_v0.MetricsStorageDefinition
+	if result := h.RequestDB(c).First(&existingMetricsStorageDefinition, metricsStorageDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingMetricsStorageDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedMetricsStorageDefinition api_v0.MetricsStorageDefinition
+	if err := c.Bind(&updatedMetricsStorageDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingMetricsStorageDefinition).Updates(&updatedMetricsStorageDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingMetricsStorageDefinition.Reconciled {
+		notifPayload, err := existingMetricsStorageDefinition.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.MetricsStorageDefinitionUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingMetricsStorageDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing metrics storage definition by replacing the entire object.
+// @Description Replace a metrics storage definition in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating metrics storage definition objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-metricsStorageDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param metricsStorageDefinition body api_v0.MetricsStorageDefinition true "MetricsStorageDefinition object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-definitions/{id} [PUT]
+func (h Handler) ReplaceMetricsStorageDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageDefinition
+	metricsStorageDefinitionID := c.Param("id")
+	var existingMetricsStorageDefinition api_v0.MetricsStorageDefinition
+	if result := h.RequestDB(c).First(&existingMetricsStorageDefinition, metricsStorageDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingMetricsStorageDefinition); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedMetricsStorageDefinition api_v0.MetricsStorageDefinition
+	if err := c.Bind(&updatedMetricsStorageDefinition); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedMetricsStorageDefinition, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedMetricsStorageDefinition.ID = existingMetricsStorageDefinition.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedMetricsStorageDefinition); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingMetricsStorageDefinition, metricsStorageDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingMetricsStorageDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a metrics storage definition.
+// @Description Delete a metrics storage definition by ID from the database.
+// @ID delete-v0-metricsStorageDefinition
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-definitions/{id} [DELETE]
+func (h Handler) DeleteMetricsStorageDefinition(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageDefinition
+	metricsStorageDefinitionID := c.Param("id")
+	var metricsStorageDefinition api_v0.MetricsStorageDefinition
+	if result := h.RequestDB(c).Preload("MetricsStorageInstances").First(&metricsStorageDefinition, metricsStorageDefinitionID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check to make sure no dependent instances exist for this definition
+	if len(metricsStorageDefinition.MetricsStorageInstances) != 0 {
+		err := errors.New("metrics storage definition has related metrics storage instances - cannot be deleted")
+		return apiserver_lib.ResponseStatus409(c, nil, err, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &metricsStorageDefinition); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if metricsStorageDefinition.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledMetricsStorageDefinition := api_v0.MetricsStorageDefinition{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&metricsStorageDefinition).Updates(&scheduledMetricsStorageDefinition); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := metricsStorageDefinition.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.MetricsStorageDefinitionDeleteSubject, *notifPayload)
+	} else {
+		if metricsStorageDefinition.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*metricsStorageDefinition.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&metricsStorageDefinition); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		metricsStorageDefinition,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// MetricsStorageInstance
+///////////////////////////////////////////////////////////////////////////////
+
+// @Summary GetMetricsStorageInstanceVersions gets the supported versions for the metrics storage instance API.
+// @Description Get the supported API versions for metrics storage instances.
+// @ID metricsStorageInstance-get-versions
+// @Produce json
+// @Success 200 {object} apiserver_lib.ApiObjectVersions "OK"
+// @Router /metrics-storage-instances/versions [GET]
+func (h Handler) GetMetricsStorageInstanceVersions(c echo.Context) error {
+	return c.JSON(http.StatusOK, apiserver_lib.ObjectVersions[string(api_v0.ObjectTypeMetricsStorageInstance)])
+}
+
+// @Summary adds a new metrics storage instance.
+// @Description Add a new metrics storage instance to the Threeport database.
+// @ID add-v0-metricsStorageInstance
+// @Accept json
+// @Produce json
+// @Param metricsStorageInstance body api_v0.MetricsStorageInstance true "MetricsStorageInstance object"
+// @Success 201 {object} v0.Response "Created"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-instances [POST]
+func (h Handler) AddMetricsStorageInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageInstance
+	var metricsStorageInstance api_v0.MetricsStorageInstance
+
+	// check for empty payload, unsupported fields, GORM Model fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, false, objectType, metricsStorageInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	if err := c.Bind(&metricsStorageInstance); err != nil {
+		h.Logger.Error("handler error: error binding object", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, metricsStorageInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// check for duplicate names
+	var existingMetricsStorageInstance api_v0.MetricsStorageInstance
+	nameUsed := true
+	result := h.RequestDB(c).Where("name = ?", metricsStorageInstance.Name).First(&existingMetricsStorageInstance)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			nameUsed = false
+		} else {
+			h.Logger.Error("handler error: error checking for duplicate names", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+	}
+	if nameUsed {
+		return apiserver_lib.ResponseStatus409(c, nil, errors.New("object with provided name already exists"), objectType)
+	}
+
+	// persist to DB
+	if result := h.RequestDB(c).Create(&metricsStorageInstance); result.Error != nil {
+		h.Logger.Error("handler error: error creating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*metricsStorageInstance.Reconciled {
+		notifPayload, err := metricsStorageInstance.NotificationPayload(
+			notifications.NotificationOperationCreated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.MetricsStorageInstanceCreateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		metricsStorageInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus201(c, *response)
+}
+
+// @Summary gets all metrics storage instances.
+// @Description Get all metrics storage instances from the Threeport database.
+// @ID get-v0-metricsStorageInstances
+// @Accept json
+// @Produce json
+// @Param name query string false "metrics storage instance search by name"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-instances [GET]
+func (h Handler) GetMetricsStorageInstances(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageInstance
+
+	// get pagination parameters
+	pageParams, err := c.(*apiserver_lib.CustomContext).GetPaginationParams()
+	if err != nil {
+		return apiserver_lib.ResponseStatus400(c, pageParams, err, objectType)
+	}
+
+	// bind filter
+	var filter api_v0.MetricsStorageInstance
+	if err := c.Bind(&filter); err != nil {
+		h.Logger.Error("handler error: error binding filter", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	pagination := new(apiserver_lib.Pagination)
+	pagination.Limit = pageParams.Limit
+
+	records := &[]api_v0.MetricsStorageInstance{}
+	var returnedCount int64
+
+	switch {
+	case pageParams.QueryId == "":
+		// no query ID provided, so the client is not requesting a specific page of results
+		// count total number of objects
+		var totalCount int64
+		if result := h.RequestDB(c).Model(&api_v0.MetricsStorageInstance{}).Where(&filter).Count(&totalCount); result.Error != nil {
+			h.Logger.Error("handler error: error counting objects", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+		}
+
+		// see if total count is greater than the limit
+		pagination.HasMore = totalCount > pagination.Limit
+
+		switch pagination.HasMore {
+		case false:
+			// if we don't have to paginate, return all records
+			if result := h.RequestDB(c).Order("ID asc").Where(&filter).Find(records); result.Error != nil {
+				h.Logger.Error("handler error: error finding objects", zap.Error(result.Error))
+				return apiserver_lib.ResponseStatus500(c, pageParams, result.Error, objectType)
+			}
+			returnedCount = int64(len(*records))
+		case true:
+			// if we have to paginate, create the materialized view and use it to fetch the first page of records
+			queryTable := filter.TableName()
+			viewName, qid, err := h.CreateMaterializedView(queryTable)
+			if err != nil {
+				h.Logger.Error("handler error: error creating materialized view", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+			pagination.QueryId = qid
+
+			// fetch records from the new materialized view
+			returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+			if err != nil {
+				h.Logger.Error("handler error: error finding records", zap.Error(err))
+				return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+			}
+
+			// set the cursor for the next page of results
+			if len(*records) > 0 {
+				pagination.NextCursor = *(*records)[len(*records)-1].ID
+			} else {
+				pagination.NextCursor = 0
+			}
+		}
+	case pageParams.QueryId != "" && pageParams.Cursor == 0:
+		// client provided a query ID but no cursor, so we cannot fetch the next page of results
+		return apiserver_lib.ResponseStatus400(c, pageParams, errors.New("cursor is required when query ID is provided"), objectType)
+	case pageParams.QueryId != "" && pageParams.Cursor != 0:
+		// use query ID to find the materialized view name
+		viewName, err := h.GetMaterializedViewName(pageParams.QueryId)
+		if err != nil {
+			h.Logger.Error("handler error: error finding materialized view", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// fetch records from the materialized view based on cursor
+		returnedCount, err = h.GetMaterializedViewRecords(records, viewName, pageParams)
+		if err != nil {
+			h.Logger.Error("handler error: error finding records", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+		}
+
+		// set the query ID for the next page of results
+		pagination.QueryId = pageParams.QueryId
+
+		// set the cursor for the next page of results
+		if len(*records) > 0 {
+			pagination.NextCursor = *(*records)[len(*records)-1].ID
+		} else {
+			pagination.NextCursor = 0
+		}
+
+		// see if we fetched the last of the records
+		pagination.HasMore = returnedCount >= pagination.Limit
+	}
+
+	// construct response
+	response, err := apiserver_lib.CreateResponse(
+		&apiserver_lib.Meta{
+			ObjectCount: returnedCount,
+			Pagination:  *pagination,
+		},
+		*records,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, pageParams, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary gets a metrics storage instance.
+// @Description Get a particular metrics storage instance from the database.
+// @ID get-v0-metricsStorageInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-instances/{id} [GET]
+func (h Handler) GetMetricsStorageInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageInstance
+	metricsStorageInstanceID := c.Param("id")
+	var metricsStorageInstance api_v0.MetricsStorageInstance
+	if result := h.RequestDB(c).
+		First(&metricsStorageInstance, metricsStorageInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		metricsStorageInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates specific fields for an existing metrics storage instance.
+// @Description Update a metrics storage instance in the database.  Provide one or more fields to update.
+// @Description Note: This API endpint is for updating metrics storage instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID update-v0-metricsStorageInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param metricsStorageInstance body api_v0.MetricsStorageInstance true "MetricsStorageInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-instances/{id} [PATCH]
+func (h Handler) UpdateMetricsStorageInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageInstance
+	metricsStorageInstanceID := c.Param("id")
+	var existingMetricsStorageInstance api_v0.MetricsStorageInstance
+	if result := h.RequestDB(c).First(&existingMetricsStorageInstance, metricsStorageInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingMetricsStorageInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedMetricsStorageInstance api_v0.MetricsStorageInstance
+	if err := c.Bind(&updatedMetricsStorageInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// update object in database
+	if result := h.RequestDB(c).Model(&existingMetricsStorageInstance).Updates(&updatedMetricsStorageInstance); result.Error != nil {
+		h.Logger.Error("handler error: error updating object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// notify controller if reconciliation is required
+	if !*existingMetricsStorageInstance.Reconciled {
+		notifPayload, err := existingMetricsStorageInstance.NotificationPayload(
+			notifications.NotificationOperationUpdated,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.MetricsStorageInstanceUpdateSubject, *notifPayload)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingMetricsStorageInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary updates an existing metrics storage instance by replacing the entire object.
+// @Description Replace a metrics storage instance in the database.  All required fields must be provided.
+// @Description If any optional fields are not provided, they will be null post-update.
+// @Description Note: This API endpint is for updating metrics storage instance objects only.
+// @Description Request bodies that include related objects will be accepted, however
+// @Description the related objects will not be changed.  Call the patch or put method for
+// @Description each particular existing object to change them.
+// @ID replace-v0-metricsStorageInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Param metricsStorageInstance body api_v0.MetricsStorageInstance true "MetricsStorageInstance object"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 400 {object} v0.Response "Bad Request"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-instances/{id} [PUT]
+func (h Handler) ReplaceMetricsStorageInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageInstance
+	metricsStorageInstanceID := c.Param("id")
+	var existingMetricsStorageInstance api_v0.MetricsStorageInstance
+	if result := h.RequestDB(c).First(&existingMetricsStorageInstance, metricsStorageInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// check for empty payload, invalid or unsupported fields, optional associations, etc.
+	if id, err := apiserver_lib.PayloadCheck(c, false, true, objectType, existingMetricsStorageInstance); err != nil {
+		h.Logger.Error("handler error: error performing payload check", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// bind payload
+	var updatedMetricsStorageInstance api_v0.MetricsStorageInstance
+	if err := c.Bind(&updatedMetricsStorageInstance); err != nil {
+		h.Logger.Error("handler error: error binding payload", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	// check for missing required fields
+	if id, err := apiserver_lib.ValidateBoundData(c, updatedMetricsStorageInstance, objectType); err != nil {
+		h.Logger.Error("handler error: error validating bound data", zap.Error(err))
+		return apiserver_lib.ResponseStatusErr(id, c, nil, errors.New(err.Error()), objectType)
+	}
+
+	// persist provided data
+	updatedMetricsStorageInstance.ID = existingMetricsStorageInstance.ID
+	if result := h.RequestDB(c).Session(&gorm.Session{FullSaveAssociations: false}).Omit("CreatedAt", "DeletedAt").Save(&updatedMetricsStorageInstance); result.Error != nil {
+		h.Logger.Error("handler error: error persisting object", zap.Error(result.Error))
+		// check if this is a custom HTTP error with specific status code
+		var httpErr *util_v0.HttpError
+		if errors.As(result.Error, &httpErr) {
+			return apiserver_lib.ResponseStatusErr(
+				httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// reload updated data from DB
+	if result := h.RequestDB(c).First(&existingMetricsStorageInstance, metricsStorageInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		existingMetricsStorageInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+// @Summary deletes a metrics storage instance.
+// @Description Delete a metrics storage instance by ID from the database.
+// @ID delete-v0-metricsStorageInstance
+// @Accept json
+// @Produce json
+// @Param id path int true "ID"
+// @Success 200 {object} v0.Response "OK"
+// @Failure 404 {object} v0.Response "Not Found"
+// @Failure 409 {object} v0.Response "Conflict"
+// @Failure 500 {object} v0.Response "Internal Server Error"
+// @Router /v0/metrics-storage-instances/{id} [DELETE]
+func (h Handler) DeleteMetricsStorageInstance(c echo.Context) error {
+	objectType := api_v0.ObjectTypeMetricsStorageInstance
+	metricsStorageInstanceID := c.Param("id")
+	var metricsStorageInstance api_v0.MetricsStorageInstance
+	if result := h.RequestDB(c).First(&metricsStorageInstance, metricsStorageInstanceID); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return apiserver_lib.ResponseStatus404(c, nil, result.Error, objectType)
+		}
+		h.Logger.Error("handler error: error finding object", zap.Error(result.Error))
+		return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+	}
+
+	// pre-check synchronously so the client sees the 409 - without this, reconciled types only surface the block to the reconciler
+	if checkErr := api_v0.CheckBlockingAttachedObjectReferences(h.RequestDB(c), &metricsStorageInstance); checkErr != nil {
+		var blockedErr *api_v0.BlockedDeleteError
+		if errors.As(checkErr, &blockedErr) {
+			return RespondBlockedDelete(
+				c,
+				h.RequestDB(c),
+				blockedErr,
+			)
+		}
+		return apiserver_lib.ResponseStatus500(c, nil, checkErr, objectType)
+	}
+	// schedule for deletion if not already scheduled
+	// if scheduled and reconciled, delete object from DB
+	// if scheduled but not reconciled, return 409 (controller is working on it)
+	if metricsStorageInstance.DeletionScheduled == nil {
+		// schedule for deletion
+		reconciled := false
+		timestamp := time.Now().UTC()
+		scheduledMetricsStorageInstance := api_v0.MetricsStorageInstance{
+			Reconciliation: api_v0.Reconciliation{
+				DeletionScheduled: &timestamp,
+				Reconciled:        &reconciled,
+			}}
+		if result := h.RequestDB(c).Model(&metricsStorageInstance).Updates(&scheduledMetricsStorageInstance); result.Error != nil {
+			h.Logger.Error("handler error: error creating scheduled deletion", zap.Error(result.Error))
+			return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+		}
+		// notify controller
+		notifPayload, err := metricsStorageInstance.NotificationPayload(
+			notifications.NotificationOperationDeleted,
+			false,
+			time.Now().Unix(),
+		)
+		if err != nil {
+			h.Logger.Error("handler error: error creating NATS notification", zap.Error(err))
+			return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+		}
+		h.JS.Publish(notif.MetricsStorageInstanceDeleteSubject, *notifPayload)
+	} else {
+		if metricsStorageInstance.DeletionConfirmed == nil {
+			// if deletion scheduled but not reconciled, return 409 - deletion
+			// already underway
+			return apiserver_lib.ResponseStatus409(c, nil, errors.New(fmt.Sprintf(
+				"object with ID %d already being deleted",
+				*metricsStorageInstance.ID,
+			)), objectType)
+		} else {
+			// object scheduled for deletion and confirmed - it can be deleted
+			// from DB
+			if result := h.RequestDB(c).Delete(&metricsStorageInstance); result.Error != nil {
+				h.Logger.Error("handler error: error deleting object", zap.Error(result.Error))
+				// surface BlockedDeleteError from gorm hook - backstop in case an attached object reference was created after the pre-check
+				var blockedErr *api_v0.BlockedDeleteError
+				if errors.As(result.Error, &blockedErr) {
+					return RespondBlockedDelete(
+						c,
+						h.RequestDB(c),
+						blockedErr,
+					)
+				}
+				// check if this is a custom HTTP error with specific status code
+				var httpErr *util_v0.HttpError
+				if errors.As(result.Error, &httpErr) {
+					return apiserver_lib.ResponseStatusErr(
+						httpErr.GetStatusCode(), c, nil, result.Error, objectType,
+					)
+				}
+				return apiserver_lib.ResponseStatus500(c, nil, result.Error, objectType)
+			}
+		}
+	}
+
+	response, err := apiserver_lib.CreateResponse(
+		apiserver_lib.SingleObjectMeta(),
+		metricsStorageInstance,
+		objectType,
+	)
+	if err != nil {
+		h.Logger.Error("handler error: error creating response", zap.Error(err))
+		return apiserver_lib.ResponseStatus500(c, nil, err, objectType)
+	}
+
+	return apiserver_lib.ResponseStatus200(c, *response)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // ObservabilityDashboardDefinition
 ///////////////////////////////////////////////////////////////////////////////
 

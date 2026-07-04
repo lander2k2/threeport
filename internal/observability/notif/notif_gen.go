@@ -35,6 +35,16 @@ const (
 	MetricsInstanceUpdateSubject = "metricsInstance.update"
 	MetricsInstanceDeleteSubject = "metricsInstance.delete"
 
+	MetricsStorageDefinitionSubject       = "metricsStorageDefinition.*"
+	MetricsStorageDefinitionCreateSubject = "metricsStorageDefinition.create"
+	MetricsStorageDefinitionUpdateSubject = "metricsStorageDefinition.update"
+	MetricsStorageDefinitionDeleteSubject = "metricsStorageDefinition.delete"
+
+	MetricsStorageInstanceSubject       = "metricsStorageInstance.*"
+	MetricsStorageInstanceCreateSubject = "metricsStorageInstance.create"
+	MetricsStorageInstanceUpdateSubject = "metricsStorageInstance.update"
+	MetricsStorageInstanceDeleteSubject = "metricsStorageInstance.delete"
+
 	LoggingDefinitionSubject       = "loggingDefinition.*"
 	LoggingDefinitionCreateSubject = "loggingDefinition.create"
 	LoggingDefinitionUpdateSubject = "loggingDefinition.update"
@@ -143,6 +153,26 @@ func GetMetricsInstanceSubjects() []string {
 		MetricsInstanceCreateSubject,
 		MetricsInstanceUpdateSubject,
 		MetricsInstanceDeleteSubject,
+	}
+}
+
+// GetMetricsStorageDefinitionSubjects returns the NATS subjects
+// for metrics storage definitions.
+func GetMetricsStorageDefinitionSubjects() []string {
+	return []string{
+		MetricsStorageDefinitionCreateSubject,
+		MetricsStorageDefinitionUpdateSubject,
+		MetricsStorageDefinitionDeleteSubject,
+	}
+}
+
+// GetMetricsStorageInstanceSubjects returns the NATS subjects
+// for metrics storage instances.
+func GetMetricsStorageInstanceSubjects() []string {
+	return []string{
+		MetricsStorageInstanceCreateSubject,
+		MetricsStorageInstanceUpdateSubject,
+		MetricsStorageInstanceDeleteSubject,
 	}
 }
 
@@ -257,6 +287,8 @@ func GetObservabilitySubjects() []string {
 	observabilitySubjects = append(observabilitySubjects, GetObservabilityDashboardInstanceSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetMetricsDefinitionSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetMetricsInstanceSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetMetricsStorageDefinitionSubjects()...)
+	observabilitySubjects = append(observabilitySubjects, GetMetricsStorageInstanceSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetLoggingDefinitionSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetLoggingInstanceSubjects()...)
 	observabilitySubjects = append(observabilitySubjects, GetTracingDefinitionSubjects()...)

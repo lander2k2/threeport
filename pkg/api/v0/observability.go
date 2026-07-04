@@ -76,6 +76,10 @@ type ObservabilityStackDefinition struct {
 	// OTel Collector Browser Relay (Deployment).
 	OtelBrowserRelayHelmValuesDocument *string `json:",omitempty" validate:"optional"`
 
+	// Metrics Storage
+	// The metrics storage definition that belongs to this resource.
+	MetricsStorageDefinitionID *uint `json:",omitempty" validate:"optional" relationship:"owns"`
+
 	// The version of the mimir-distributed helm chart to use from the helm repo, e.g. 1.2.3
 	MimirHelmChartVersion *string `json:",omitempty" validate:"optional"`
 
@@ -101,6 +105,12 @@ type ObservabilityStackInstance struct {
 
 	// If true, metrics will be enabled for the observability stack.
 	MetricsEnabled *bool `json:",omitempty" validate:"optional" gorm:"default:true"`
+
+	// If true, long-term metrics storage (Mimir) will be enabled for the
+	// observability stack. Typically disabled in dev, where Prometheus serves as
+	// the terminal metric store, and enabled in production as the remote_write
+	// target for long-term retention.
+	MetricsStorageEnabled *bool `json:",omitempty" validate:"optional" gorm:"default:false"`
 
 	// If true, logging will be enabled for the observability stack.
 	LoggingEnabled *bool `json:",omitempty" validate:"optional" gorm:"default:true"`
@@ -176,6 +186,10 @@ type ObservabilityStackInstance struct {
 	// OTel Collector Browser Relay (Deployment).
 	OtelBrowserRelayHelmValuesDocument *string `json:",omitempty" validate:"optional"`
 
+	// Metrics Storage
+	// The metrics storage instance that belongs to this resource.
+	MetricsStorageInstanceID *uint `json:",omitempty" validate:"optional" relationship:"owns"`
+
 	// Optional Helm workload instance values that can be provided to configure the
 	// underlying mimir chart.
 	MimirHelmValuesDocument *string `json:",omitempty" validate:"optional"`
@@ -237,16 +251,6 @@ type MetricsDefinition struct {
 	// underlying kube-prometheus-stack chart.
 	KubePrometheusStackHelmValuesDocument *string `json:",omitempty" validate:"optional"`
 
-	// The mimir-distributed Helm workload definition that belongs to this resource.
-	MimirHelmWorkloadDefinitionID *uint `json:",omitempty" validate:"optional" relationship:"owns;type:HelmWorkloadDefinition"`
-
-	// The version of the mimir-distributed helm chart to use from the helm repo, e.g. 1.2.3
-	MimirHelmChartVersion *string `json:",omitempty" validate:"optional" gorm:"default:'6.1.0'"`
-
-	// Optional Helm workload definition values that can be provided to configure the
-	// underlying mimir chart.
-	MimirHelmValuesDocument *string `json:",omitempty" validate:"optional"`
-
 	// The associated metrics instances that are deployed from this definition.
 	MetricsInstances []*MetricsInstance `json:",omitempty" validate:"optional,association"`
 }
@@ -269,6 +273,41 @@ type MetricsInstance struct {
 	// Optional Helm workload instance values that can be provided to configure the
 	// underlying kube-prometheus-stack chart.
 	KubePrometheusStackHelmValuesDocument *string `json:",omitempty" validate:"optional"`
+}
+
+// MetricsStorageDefinition is the definition of a long-term metrics storage layer
+// for a workload.
+type MetricsStorageDefinition struct {
+	Common         `swaggerignore:"true" mapstructure:",squash"`
+	Definition     `mapstructure:",squash"`
+	Reconciliation `mapstructure:",squash"`
+
+	// The mimir-distributed Helm workload definition that belongs to this resource.
+	MimirHelmWorkloadDefinitionID *uint `json:",omitempty" validate:"optional" relationship:"owns;type:HelmWorkloadDefinition"`
+
+	// The version of the mimir-distributed helm chart to use from the helm repo, e.g. 1.2.3
+	MimirHelmChartVersion *string `json:",omitempty" validate:"optional" gorm:"default:'6.1.0'"`
+
+	// Optional Helm workload definition values that can be provided to configure the
+	// underlying mimir chart.
+	MimirHelmValuesDocument *string `json:",omitempty" validate:"optional"`
+
+	// The associated metrics storage instances that are deployed from this definition.
+	MetricsStorageInstances []*MetricsStorageInstance `json:",omitempty" validate:"optional,association"`
+}
+
+// MetricsStorageInstance is a deployed instance of a long-term metrics storage
+// layer for a workload.
+type MetricsStorageInstance struct {
+	Common         `swaggerignore:"true" mapstructure:",squash"`
+	Instance       `mapstructure:",squash"`
+	Reconciliation `mapstructure:",squash"`
+
+	// The metrics storage definition that belongs to this resource.
+	MetricsStorageDefinitionID *uint `json:",omitempty" validate:"required" gorm:"not null" relationship:"requires"`
+
+	// The kubernetes runtime where the metrics storage is installed.
+	KubernetesRuntimeInstanceID *uint `json:",omitempty" validate:"required" gorm:"not null" relationship:"requires"`
 
 	// The mimir-distributed helm workload instance that belongs to this resource.
 	MimirHelmWorkloadInstanceID *uint `json:",omitempty" validate:"optional" relationship:"owns;type:HelmWorkloadInstance"`

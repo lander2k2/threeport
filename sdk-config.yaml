@@ -256,6 +256,14 @@ ApiObjectGroups:
       Versions:
         - v0
       Reconcilable: true
+    - Name: MetricsStorageDefinition
+      Versions:
+        - v0
+      Reconcilable: true
+    - Name: MetricsStorageInstance
+      Versions:
+        - v0
+      Reconcilable: true
     - Name: LoggingDefinition
       Versions:
         - v0

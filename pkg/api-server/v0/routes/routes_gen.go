@@ -50,6 +50,8 @@ func AddRoutes(e *echo.Echo, h *handlers.Handler) {
 	MachineWorkloadInstanceRoutes(e, h)
 	MetricsDefinitionRoutes(e, h)
 	MetricsInstanceRoutes(e, h)
+	MetricsStorageDefinitionRoutes(e, h)
+	MetricsStorageInstanceRoutes(e, h)
 	ModuleApiRoutes(e, h)
 	ModuleApiRouteRoutes(e, h)
 	ModuleControllerRoutes(e, h)

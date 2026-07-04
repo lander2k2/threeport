@@ -57,6 +57,16 @@ func main() {
 		1,
 		"Number of concurrent reconcilers to run for metrics instances",
 	)
+	var metricsStorageDefinitionConcurrentReconciles = flag.Int(
+		"metrics-storage-definition-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for metrics storage definitions",
+	)
+	var metricsStorageInstanceConcurrentReconciles = flag.Int(
+		"metrics-storage-instance-concurrent-reconciles",
+		1,
+		"Number of concurrent reconcilers to run for metrics storage instances",
+	)
 	var loggingDefinitionConcurrentReconciles = flag.Int(
 		"logging-definition-concurrent-reconciles",
 		1,
@@ -235,6 +245,18 @@ func main() {
 		Name:                 "MetricsInstanceReconciler",
 		NotifSubject:         notif.MetricsInstanceSubject,
 		ReconcileFunc:        observability.MetricsInstanceReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *metricsStorageDefinitionConcurrentReconciles,
+		Name:                 "MetricsStorageDefinitionReconciler",
+		NotifSubject:         notif.MetricsStorageDefinitionSubject,
+		ReconcileFunc:        observability.MetricsStorageDefinitionReconciler,
+	})
+	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
+		ConcurrentReconciles: *metricsStorageInstanceConcurrentReconciles,
+		Name:                 "MetricsStorageInstanceReconciler",
+		NotifSubject:         notif.MetricsStorageInstanceSubject,
+		ReconcileFunc:        observability.MetricsStorageInstanceReconciler,
 	})
 	reconcilerConfigs = append(reconcilerConfigs, controller.ReconcilerConfig{
 		ConcurrentReconciles: *loggingDefinitionConcurrentReconciles,

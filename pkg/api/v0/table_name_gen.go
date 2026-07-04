@@ -227,6 +227,16 @@ func (MetricsInstance) TableName() string {
 	return "v0_metrics_instances"
 }
 
+// TableName sets the name of the table for the MetricsStorageDefinition objects in the database.
+func (MetricsStorageDefinition) TableName() string {
+	return "v0_metrics_storage_definitions"
+}
+
+// TableName sets the name of the table for the MetricsStorageInstance objects in the database.
+func (MetricsStorageInstance) TableName() string {
+	return "v0_metrics_storage_instances"
+}
+
 // TableName sets the name of the table for the ModuleApi objects in the database.
 func (ModuleApi) TableName() string {
 	return "v0_module_apis"

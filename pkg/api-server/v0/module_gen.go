@@ -2148,6 +2148,96 @@ func upsertModuleControllersObjectsRoutes(db *gorm.DB, moduleApi *api_v0.ModuleA
 		return fmt.Errorf("failed to register object route for MetricsInstance: %w", result.Error)
 	}
 
+	// registering object MetricsStorageDefinition
+	object = api_v0.ModuleObject{
+		Description:        util.Ptr("MetricsStorageDefinition is the definition of a long-term metrics storage layer for a workload."),
+		ModuleApiID:        moduleApi.ID,
+		ModuleControllerID: controller.ID,
+		Name:               util.Ptr("MetricsStorageDefinition"),
+		Version:            util.Ptr("v0"),
+	}
+	result = db.Where(api_v0.ModuleObject{
+		ModuleApiID: moduleApi.ID,
+		Name:        object.Name,
+		Version:     object.Version,
+	}).FirstOrCreate(&object)
+	if result.Error != nil {
+		return fmt.Errorf("failed to register MetricsStorageDefinition: %w", result.Error)
+	}
+
+	// registering routes for MetricsStorageDefinition
+	route = api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          util.Ptr(api_v0.PathMetricsStorageDefinitionVersions),
+	}
+	result = db.Omit("ModuleObjects.*").Where(api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          route.Path,
+	}).FirstOrCreate(&route)
+	if result.Error != nil {
+		return fmt.Errorf("failed to register version route for MetricsStorageDefinition: %w", result.Error)
+	}
+	route = api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          util.Ptr(api_v0.PathMetricsStorageDefinitions),
+	}
+	result = db.Omit("ModuleObjects.*").Where(api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          route.Path,
+	}).FirstOrCreate(&route)
+	if result.Error != nil {
+		return fmt.Errorf("failed to register object route for MetricsStorageDefinition: %w", result.Error)
+	}
+
+	// registering object MetricsStorageInstance
+	object = api_v0.ModuleObject{
+		Description:        util.Ptr("MetricsStorageInstance is a deployed instance of a long-term metrics storage layer for a workload."),
+		ModuleApiID:        moduleApi.ID,
+		ModuleControllerID: controller.ID,
+		Name:               util.Ptr("MetricsStorageInstance"),
+		Version:            util.Ptr("v0"),
+	}
+	result = db.Where(api_v0.ModuleObject{
+		ModuleApiID: moduleApi.ID,
+		Name:        object.Name,
+		Version:     object.Version,
+	}).FirstOrCreate(&object)
+	if result.Error != nil {
+		return fmt.Errorf("failed to register MetricsStorageInstance: %w", result.Error)
+	}
+
+	// registering routes for MetricsStorageInstance
+	route = api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          util.Ptr(api_v0.PathMetricsStorageInstanceVersions),
+	}
+	result = db.Omit("ModuleObjects.*").Where(api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          route.Path,
+	}).FirstOrCreate(&route)
+	if result.Error != nil {
+		return fmt.Errorf("failed to register version route for MetricsStorageInstance: %w", result.Error)
+	}
+	route = api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          util.Ptr(api_v0.PathMetricsStorageInstances),
+	}
+	result = db.Omit("ModuleObjects.*").Where(api_v0.ModuleApiRoute{
+		ModuleApiID:   moduleApi.ID,
+		ModuleObjects: []*api_v0.ModuleObject{&object},
+		Path:          route.Path,
+	}).FirstOrCreate(&route)
+	if result.Error != nil {
+		return fmt.Errorf("failed to register object route for MetricsStorageInstance: %w", result.Error)
+	}
+
 	// registering object ObservabilityDashboardDefinition
 	object = api_v0.ModuleObject{
 		Description:        util.Ptr("ObservabilityDashboardDefinition is the definition of an observability dashboard."),

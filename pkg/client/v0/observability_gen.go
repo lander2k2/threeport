@@ -2983,6 +2983,600 @@ func DeleteMetricsInstance(apiClient *http.Client, apiAddr string, id uint) (*v0
 	return &metricsInstance, nil
 }
 
+// GetMetricsStorageDefinitions fetches all metrics storage definitions.
+func GetMetricsStorageDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.MetricsStorageDefinition, error) {
+	var metricsStorageDefinitions []v0.MetricsStorageDefinition
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathMetricsStorageDefinitions)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathMetricsStorageDefinitions, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &metricsStorageDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &metricsStorageDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageDefinitions, nil
+}
+
+// GetMetricsStorageDefinitionByID fetches a metrics storage definition by ID.
+func GetMetricsStorageDefinitionByID(apiClient *http.Client, apiAddr string, id uint) (*v0.MetricsStorageDefinition, error) {
+	var metricsStorageDefinition v0.MetricsStorageDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageDefinitions, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &metricsStorageDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &metricsStorageDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageDefinition, nil
+}
+
+// GetMetricsStorageDefinitionsByQueryString fetches metrics storage definitions by provided query string.
+func GetMetricsStorageDefinitionsByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.MetricsStorageDefinition, error) {
+	var metricsStorageDefinitions []v0.MetricsStorageDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathMetricsStorageDefinitions, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &metricsStorageDefinitions, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &metricsStorageDefinitions, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageDefinitions, nil
+}
+
+// GetMetricsStorageDefinitionByName fetches a metrics storage definition by name.
+func GetMetricsStorageDefinitionByName(apiClient *http.Client, apiAddr, name string) (*v0.MetricsStorageDefinition, error) {
+	var metricsStorageDefinitions []v0.MetricsStorageDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathMetricsStorageDefinitions, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.MetricsStorageDefinition{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.MetricsStorageDefinition{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageDefinitions); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(metricsStorageDefinitions) < 1:
+		return &v0.MetricsStorageDefinition{}, client_lib.ErrObjectNotFound
+	case len(metricsStorageDefinitions) > 1:
+		return &v0.MetricsStorageDefinition{}, fmt.Errorf("more than one metrics storage definition with name %s returned", name)
+	}
+
+	return &metricsStorageDefinitions[0], nil
+}
+
+// CreateMetricsStorageDefinition creates a new metrics storage definition.
+func CreateMetricsStorageDefinition(apiClient *http.Client, apiAddr string, metricsStorageDefinition *v0.MetricsStorageDefinition) (*v0.MetricsStorageDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(metricsStorageDefinition)
+	jsonMetricsStorageDefinition, err := util.MarshalObject(metricsStorageDefinition)
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathMetricsStorageDefinitions),
+		http.MethodPost,
+		bytes.NewBuffer(jsonMetricsStorageDefinition),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return metricsStorageDefinition, nil
+}
+
+// UpdateMetricsStorageDefinition updates a metrics storage definition with a PATCH request.
+func UpdateMetricsStorageDefinition(apiClient *http.Client, apiAddr string, metricsStorageDefinition *v0.MetricsStorageDefinition) (*v0.MetricsStorageDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(metricsStorageDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	metricsStorageDefinitionID := *metricsStorageDefinition.ID
+	payloadMetricsStorageDefinition := *metricsStorageDefinition
+	payloadMetricsStorageDefinition.ID = nil
+	payloadMetricsStorageDefinition.CreatedAt = nil
+	payloadMetricsStorageDefinition.UpdatedAt = nil
+
+	jsonMetricsStorageDefinition, err := util.MarshalObject(payloadMetricsStorageDefinition)
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageDefinitions, metricsStorageDefinitionID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonMetricsStorageDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadMetricsStorageDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadMetricsStorageDefinition.ID = &metricsStorageDefinitionID
+	return &payloadMetricsStorageDefinition, nil
+}
+
+// ReplaceMetricsStorageDefinition updates a metrics storage definition with a PUT request.
+func ReplaceMetricsStorageDefinition(apiClient *http.Client, apiAddr string, metricsStorageDefinition *v0.MetricsStorageDefinition) (*v0.MetricsStorageDefinition, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(metricsStorageDefinition)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	metricsStorageDefinitionID := *metricsStorageDefinition.ID
+	payloadMetricsStorageDefinition := *metricsStorageDefinition
+	payloadMetricsStorageDefinition.ID = nil
+	payloadMetricsStorageDefinition.CreatedAt = nil
+	payloadMetricsStorageDefinition.UpdatedAt = nil
+
+	jsonMetricsStorageDefinition, err := util.MarshalObject(payloadMetricsStorageDefinition)
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageDefinitions, metricsStorageDefinitionID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonMetricsStorageDefinition),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return metricsStorageDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadMetricsStorageDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadMetricsStorageDefinition.ID = &metricsStorageDefinitionID
+	return &payloadMetricsStorageDefinition, nil
+}
+
+// DeleteMetricsStorageDefinition deletes a metrics storage definition by ID.
+func DeleteMetricsStorageDefinition(apiClient *http.Client, apiAddr string, id uint) (*v0.MetricsStorageDefinition, error) {
+	var metricsStorageDefinition v0.MetricsStorageDefinition
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageDefinitions, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &metricsStorageDefinition, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &metricsStorageDefinition, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageDefinition); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageDefinition, nil
+}
+
+// GetMetricsStorageInstances fetches all metrics storage instances.
+func GetMetricsStorageInstances(apiClient *http.Client, apiAddr string) (*[]v0.MetricsStorageInstance, error) {
+	var metricsStorageInstances []v0.MetricsStorageInstance
+
+	allPagesReceived := false
+	var allPageData []apiserver_lib.Object
+	nextCursor := uint(0)
+	queryId := ""
+	for !allPagesReceived {
+		url := fmt.Sprintf("%s%s", apiAddr, v0.PathMetricsStorageInstances)
+		if queryId != "" {
+			url = fmt.Sprintf("%s%s?queryid=%s&cursor=%d", apiAddr, v0.PathMetricsStorageInstances, queryId, nextCursor)
+		}
+
+		response, err := client_lib.GetResponse(
+			apiClient,
+			url,
+			http.MethodGet,
+			new(bytes.Buffer),
+			map[string]string{},
+			http.StatusOK,
+		)
+		if err != nil {
+			return &metricsStorageInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+		}
+
+		allPageData = append(allPageData, response.Data...)
+
+		if response.Meta.Pagination.HasMore {
+			nextCursor = response.Meta.Pagination.NextCursor
+			queryId = response.Meta.Pagination.QueryId
+		} else {
+			allPagesReceived = true
+		}
+	}
+
+	jsonData, err := json.Marshal(allPageData)
+	if err != nil {
+		return &metricsStorageInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageInstances, nil
+}
+
+// GetMetricsStorageInstanceByID fetches a metrics storage instance by ID.
+func GetMetricsStorageInstanceByID(apiClient *http.Client, apiAddr string, id uint) (*v0.MetricsStorageInstance, error) {
+	var metricsStorageInstance v0.MetricsStorageInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageInstances, id),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &metricsStorageInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &metricsStorageInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageInstance, nil
+}
+
+// GetMetricsStorageInstancesByQueryString fetches metrics storage instances by provided query string.
+func GetMetricsStorageInstancesByQueryString(apiClient *http.Client, apiAddr string, queryString string) (*[]v0.MetricsStorageInstance, error) {
+	var metricsStorageInstances []v0.MetricsStorageInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?%s", apiAddr, v0.PathMetricsStorageInstances, queryString),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &metricsStorageInstances, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &metricsStorageInstances, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageInstances, nil
+}
+
+// GetMetricsStorageInstanceByName fetches a metrics storage instance by name.
+func GetMetricsStorageInstanceByName(apiClient *http.Client, apiAddr, name string) (*v0.MetricsStorageInstance, error) {
+	var metricsStorageInstances []v0.MetricsStorageInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s?name=%s", apiAddr, v0.PathMetricsStorageInstances, name),
+		http.MethodGet,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &v0.MetricsStorageInstance{}, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data)
+	if err != nil {
+		return &v0.MetricsStorageInstance{}, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageInstances); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	switch {
+	case len(metricsStorageInstances) < 1:
+		return &v0.MetricsStorageInstance{}, client_lib.ErrObjectNotFound
+	case len(metricsStorageInstances) > 1:
+		return &v0.MetricsStorageInstance{}, fmt.Errorf("more than one metrics storage instance with name %s returned", name)
+	}
+
+	return &metricsStorageInstances[0], nil
+}
+
+// CreateMetricsStorageInstance creates a new metrics storage instance.
+func CreateMetricsStorageInstance(apiClient *http.Client, apiAddr string, metricsStorageInstance *v0.MetricsStorageInstance) (*v0.MetricsStorageInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(metricsStorageInstance)
+	jsonMetricsStorageInstance, err := util.MarshalObject(metricsStorageInstance)
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s", apiAddr, v0.PathMetricsStorageInstances),
+		http.MethodPost,
+		bytes.NewBuffer(jsonMetricsStorageInstance),
+		map[string]string{},
+		http.StatusCreated,
+	)
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return metricsStorageInstance, nil
+}
+
+// UpdateMetricsStorageInstance updates a metrics storage instance with a PATCH request.
+func UpdateMetricsStorageInstance(apiClient *http.Client, apiAddr string, metricsStorageInstance *v0.MetricsStorageInstance) (*v0.MetricsStorageInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(metricsStorageInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	metricsStorageInstanceID := *metricsStorageInstance.ID
+	payloadMetricsStorageInstance := *metricsStorageInstance
+	payloadMetricsStorageInstance.ID = nil
+	payloadMetricsStorageInstance.CreatedAt = nil
+	payloadMetricsStorageInstance.UpdatedAt = nil
+
+	jsonMetricsStorageInstance, err := util.MarshalObject(payloadMetricsStorageInstance)
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageInstances, metricsStorageInstanceID),
+		http.MethodPatch,
+		bytes.NewBuffer(jsonMetricsStorageInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadMetricsStorageInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadMetricsStorageInstance.ID = &metricsStorageInstanceID
+	return &payloadMetricsStorageInstance, nil
+}
+
+// ReplaceMetricsStorageInstance updates a metrics storage instance with a PUT request.
+func ReplaceMetricsStorageInstance(apiClient *http.Client, apiAddr string, metricsStorageInstance *v0.MetricsStorageInstance) (*v0.MetricsStorageInstance, error) {
+	client_lib.ReplaceAssociatedObjectsWithNil(metricsStorageInstance)
+	// capture the object ID, make a copy of the object, then remove fields that
+	// cannot be updated in the API
+	metricsStorageInstanceID := *metricsStorageInstance.ID
+	payloadMetricsStorageInstance := *metricsStorageInstance
+	payloadMetricsStorageInstance.ID = nil
+	payloadMetricsStorageInstance.CreatedAt = nil
+	payloadMetricsStorageInstance.UpdatedAt = nil
+
+	jsonMetricsStorageInstance, err := util.MarshalObject(payloadMetricsStorageInstance)
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("failed to marshal provided object to JSON: %w", err)
+	}
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageInstances, metricsStorageInstanceID),
+		http.MethodPut,
+		bytes.NewBuffer(jsonMetricsStorageInstance),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return metricsStorageInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payloadMetricsStorageInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	payloadMetricsStorageInstance.ID = &metricsStorageInstanceID
+	return &payloadMetricsStorageInstance, nil
+}
+
+// DeleteMetricsStorageInstance deletes a metrics storage instance by ID.
+func DeleteMetricsStorageInstance(apiClient *http.Client, apiAddr string, id uint) (*v0.MetricsStorageInstance, error) {
+	var metricsStorageInstance v0.MetricsStorageInstance
+
+	response, err := client_lib.GetResponse(
+		apiClient,
+		fmt.Sprintf("%s%s/%d", apiAddr, v0.PathMetricsStorageInstances, id),
+		http.MethodDelete,
+		new(bytes.Buffer),
+		map[string]string{},
+		http.StatusOK,
+	)
+	if err != nil {
+		return &metricsStorageInstance, fmt.Errorf("call to threeport API returned unexpected response: %w", err)
+	}
+
+	jsonData, err := json.Marshal(response.Data[0])
+	if err != nil {
+		return &metricsStorageInstance, fmt.Errorf("failed to marshal response data from threeport API: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metricsStorageInstance); err != nil {
+		return nil, fmt.Errorf("failed to decode object in response data from threeport API: %w", err)
+	}
+
+	return &metricsStorageInstance, nil
+}
+
 // GetObservabilityDashboardDefinitions fetches all observability dashboard definitions.
 func GetObservabilityDashboardDefinitions(apiClient *http.Client, apiAddr string) (*[]v0.ObservabilityDashboardDefinition, error) {
 	var observabilityDashboardDefinitions []v0.ObservabilityDashboardDefinition

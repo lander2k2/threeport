@@ -20,6 +20,8 @@ const (
 	ObjectTypeLoggingInstance                       string = "LoggingInstance"
 	ObjectTypeMetricsDefinition                     string = "MetricsDefinition"
 	ObjectTypeMetricsInstance                       string = "MetricsInstance"
+	ObjectTypeMetricsStorageDefinition              string = "MetricsStorageDefinition"
+	ObjectTypeMetricsStorageInstance                string = "MetricsStorageInstance"
 	ObjectTypeObservabilityDashboardDefinition      string = "ObservabilityDashboardDefinition"
 	ObjectTypeObservabilityDashboardInstance        string = "ObservabilityDashboardInstance"
 	ObjectTypeObservabilityStackDefinition          string = "ObservabilityStackDefinition"
@@ -47,6 +49,10 @@ const (
 	PathMetricsDefinitions                            = "/v0/metrics-definitions"
 	PathMetricsInstanceVersions                       = "/metrics-instances/versions"
 	PathMetricsInstances                              = "/v0/metrics-instances"
+	PathMetricsStorageDefinitionVersions              = "/metrics-storage-definitions/versions"
+	PathMetricsStorageDefinitions                     = "/v0/metrics-storage-definitions"
+	PathMetricsStorageInstanceVersions                = "/metrics-storage-instances/versions"
+	PathMetricsStorageInstances                       = "/v0/metrics-storage-instances"
 	PathObservabilityDashboardDefinitionVersions      = "/observability-dashboard-definitions/versions"
 	PathObservabilityDashboardDefinitions             = "/v0/observability-dashboard-definitions"
 	PathObservabilityDashboardInstanceVersions        = "/observability-dashboard-instances/versions"
@@ -773,11 +779,6 @@ func (m *MetricsDefinition) RelationshipTaggedForeignKeys() []RelationshipTagged
 		ObjectID:     m.KubePrometheusStackHelmWorkloadDefinitionID,
 		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
-	}, {
-		FieldName:    "MimirHelmWorkloadDefinitionID",
-		ObjectID:     m.MimirHelmWorkloadDefinitionID,
-		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
-		Relationship: RelationshipOwns,
 	}}
 }
 
@@ -862,6 +863,161 @@ func (m *MetricsInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedFo
 		FieldName:    "MetricsDefinitionID",
 		ObjectID:     m.MetricsDefinitionID,
 		ObjectType:   new(MetricsDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (msd *MetricsStorageDefinition) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        msd,
+		ObjectVersion: msd.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", msd, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (msd *MetricsStorageDefinition) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &msd); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (msd *MetricsStorageDefinition) GetId() uint {
+	return *msd.ID
+}
+
+// GetType returns the object type.
+func (msd *MetricsStorageDefinition) GetType() string {
+	return "MetricsStorageDefinition"
+}
+
+// GetVersion returns the version of the API object.
+func (msd *MetricsStorageDefinition) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (msd *MetricsStorageDefinition) GetFullyQualifiedType() string {
+	return "threeport.io/v0.MetricsStorageDefinition"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (msd *MetricsStorageDefinition) ScheduledForDeletion() *time.Time {
+	return msd.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "MimirHelmWorkloadDefinitionID",
+		ObjectID:     m.MimirHelmWorkloadDefinitionID,
+		ObjectType:   new(HelmWorkloadDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}}
+}
+
+// NotificationPayload returns the notification payload that is delivered to the
+// controller when a change is made.  It includes the object as presented by the
+// client when the change was made.
+func (msi *MetricsStorageInstance) NotificationPayload(
+	operation notifications.NotificationOperation,
+	requeue bool,
+	creationTime int64,
+) (*[]byte, error) {
+	notif := notifications.Notification{
+		CreationTime:  &creationTime,
+		Object:        msi,
+		ObjectVersion: msi.GetVersion(),
+		Operation:     operation,
+	}
+
+	payload, err := json.Marshal(notif)
+	if err != nil {
+		return &payload, fmt.Errorf("failed to marshal notification payload %+v: %w", msi, err)
+	}
+
+	return &payload, nil
+}
+
+// DecodeNotifObject takes the threeport object in the form of a
+// map[string]interface and returns the typed object by marshalling into JSON
+// and then unmarshalling into the typed object.  We are not using the
+// mapstructure library here as that requires custom decode hooks to manage
+// fields with non-native go types.
+func (msi *MetricsStorageInstance) DecodeNotifObject(object interface{}) error {
+	jsonObject, err := json.Marshal(object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal object map from consumed notification message: %w", err)
+	}
+	if err := json.Unmarshal(jsonObject, &msi); err != nil {
+		return fmt.Errorf("failed to unmarshal json object to typed object: %w", err)
+	}
+	return nil
+}
+
+// GetId returns the unique ID for the object.
+func (msi *MetricsStorageInstance) GetId() uint {
+	return *msi.ID
+}
+
+// GetType returns the object type.
+func (msi *MetricsStorageInstance) GetType() string {
+	return "MetricsStorageInstance"
+}
+
+// GetVersion returns the version of the API object.
+func (msi *MetricsStorageInstance) GetVersion() string {
+	return "v0"
+}
+
+// GetFullyQualifiedType returns the API-namespace-qualified type name.
+func (msi *MetricsStorageInstance) GetFullyQualifiedType() string {
+	return "threeport.io/v0.MetricsStorageInstance"
+}
+
+// ScheduledForDeletion returns a pointer to the DeletionScheduled timestamp
+// if scheduled for deletion or nil if not scheduled for deletion.
+func (msi *MetricsStorageInstance) ScheduledForDeletion() *time.Time {
+	return msi.DeletionScheduled
+}
+
+// RelationshipTaggedForeignKeys returns the relationship-tagged foreign keys on MetricsStorageInstance.
+func (m *MetricsStorageInstance) RelationshipTaggedForeignKeys() []RelationshipTaggedForeignKey {
+	return []RelationshipTaggedForeignKey{{
+		FieldName:    "KubernetesRuntimeInstanceID",
+		ObjectID:     m.KubernetesRuntimeInstanceID,
+		ObjectType:   new(KubernetesRuntimeInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipRequires,
+	}, {
+		FieldName:    "MetricsStorageDefinitionID",
+		ObjectID:     m.MetricsStorageDefinitionID,
+		ObjectType:   new(MetricsStorageDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipRequires,
 	}, {
 		FieldName:    "MimirHelmWorkloadInstanceID",
@@ -1124,6 +1280,11 @@ func (o *ObservabilityStackDefinition) RelationshipTaggedForeignKeys() []Relatio
 		ObjectType:   new(MetricsDefinition).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
 	}, {
+		FieldName:    "MetricsStorageDefinitionID",
+		ObjectID:     o.MetricsStorageDefinitionID,
+		ObjectType:   new(MetricsStorageDefinition).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
 		FieldName:    "ObservabilityDashboardDefinitionID",
 		ObjectID:     o.ObservabilityDashboardDefinitionID,
 		ObjectType:   new(ObservabilityDashboardDefinition).GetFullyQualifiedType(),
@@ -1232,6 +1393,11 @@ func (o *ObservabilityStackInstance) RelationshipTaggedForeignKeys() []Relations
 		FieldName:    "MetricsInstanceID",
 		ObjectID:     o.MetricsInstanceID,
 		ObjectType:   new(MetricsInstance).GetFullyQualifiedType(),
+		Relationship: RelationshipOwns,
+	}, {
+		FieldName:    "MetricsStorageInstanceID",
+		ObjectID:     o.MetricsStorageInstanceID,
+		ObjectType:   new(MetricsStorageInstance).GetFullyQualifiedType(),
 		Relationship: RelationshipOwns,
 	}, {
 		FieldName:    "ObservabilityDashboardInstanceID",

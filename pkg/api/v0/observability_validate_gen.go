@@ -484,6 +484,102 @@ func (m *MetricsInstance) AfterDelete(tx *gorm.DB) error {
 	return ProcessCoreTaggedFieldsAfterDelete(tx, m)
 }
 
+// BeforeCreate is the GORM before-create hook for MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) BeforeCreate(tx *gorm.DB) error {
+	if err := m.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, m)
+}
+
+// BeforeUpdate is the GORM before-update hook for MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) BeforeUpdate(tx *gorm.DB) error {
+	if err := m.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, m)
+}
+
+// BeforeDelete is the GORM before-delete hook for MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) BeforeDelete(tx *gorm.DB) error {
+	if err := m.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, m)
+}
+
+// AfterCreate is the GORM after-create hook for MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) AfterCreate(tx *gorm.DB) error {
+	if err := m.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, m)
+}
+
+// AfterUpdate is the GORM after-update hook for MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) AfterUpdate(tx *gorm.DB) error {
+	if err := m.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, m)
+}
+
+// AfterDelete is the GORM after-delete hook for MetricsStorageDefinition.
+func (m *MetricsStorageDefinition) AfterDelete(tx *gorm.DB) error {
+	if err := m.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, m)
+}
+
+// BeforeCreate is the GORM before-create hook for MetricsStorageInstance.
+func (m *MetricsStorageInstance) BeforeCreate(tx *gorm.DB) error {
+	if err := m.beforeCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeCreate(tx, m)
+}
+
+// BeforeUpdate is the GORM before-update hook for MetricsStorageInstance.
+func (m *MetricsStorageInstance) BeforeUpdate(tx *gorm.DB) error {
+	if err := m.beforeUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeUpdate(tx, m)
+}
+
+// BeforeDelete is the GORM before-delete hook for MetricsStorageInstance.
+func (m *MetricsStorageInstance) BeforeDelete(tx *gorm.DB) error {
+	if err := m.beforeDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsBeforeDelete(tx, m)
+}
+
+// AfterCreate is the GORM after-create hook for MetricsStorageInstance.
+func (m *MetricsStorageInstance) AfterCreate(tx *gorm.DB) error {
+	if err := m.afterCreate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterCreate(tx, m)
+}
+
+// AfterUpdate is the GORM after-update hook for MetricsStorageInstance.
+func (m *MetricsStorageInstance) AfterUpdate(tx *gorm.DB) error {
+	if err := m.afterUpdate(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterUpdate(tx, m)
+}
+
+// AfterDelete is the GORM after-delete hook for MetricsStorageInstance.
+func (m *MetricsStorageInstance) AfterDelete(tx *gorm.DB) error {
+	if err := m.afterDelete(tx); err != nil {
+		return err
+	}
+	return ProcessCoreTaggedFieldsAfterDelete(tx, m)
+}
+
 // BeforeCreate is the GORM before-create hook for ObservabilityDashboardDefinition.
 func (o *ObservabilityDashboardDefinition) BeforeCreate(tx *gorm.DB) error {
 	if err := o.beforeCreate(tx); err != nil {

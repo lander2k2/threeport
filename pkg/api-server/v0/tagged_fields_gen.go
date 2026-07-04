@@ -49,6 +49,8 @@ var (
 	MachineWorkloadInstanceTaggedFields               = make(map[string]*apiserver_lib.FieldsByTag)
 	MetricsDefinitionTaggedFields                     = make(map[string]*apiserver_lib.FieldsByTag)
 	MetricsInstanceTaggedFields                       = make(map[string]*apiserver_lib.FieldsByTag)
+	MetricsStorageDefinitionTaggedFields              = make(map[string]*apiserver_lib.FieldsByTag)
+	MetricsStorageInstanceTaggedFields                = make(map[string]*apiserver_lib.FieldsByTag)
 	ModuleApiTaggedFields                             = make(map[string]*apiserver_lib.FieldsByTag)
 	ModuleApiRouteTaggedFields                        = make(map[string]*apiserver_lib.FieldsByTag)
 	ModuleControllerTaggedFields                      = make(map[string]*apiserver_lib.FieldsByTag)

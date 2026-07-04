@@ -330,6 +330,70 @@ func AddMetricsInstanceVersions() {
 	apiserver_lib.AddObjectVersion(versionObj)
 }
 
+// AddMetricsStorageDefinitionVersions adds field validation info and adds it
+// to the REST API versions.
+func AddMetricsStorageDefinitionVersions() {
+	apiserver_v0.MetricsStorageDefinitionTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.MetricsStorageDefinition)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.MetricsStorageDefinitionTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeMetricsStorageDefinition),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.MetricsStorageDefinitionTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
+// AddMetricsStorageInstanceVersions adds field validation info and adds it
+// to the REST API versions.
+func AddMetricsStorageInstanceVersions() {
+	apiserver_v0.MetricsStorageInstanceTaggedFields[string(api_lib.ValidateTag)] = &apiserver_lib.FieldsByTag{
+		Optional:             []string{},
+		OptionalAssociations: []string{},
+		Required:             []string{},
+		TagName:              string(api_lib.ValidateTag),
+	}
+
+	// parse struct and populate the FieldsByTag object
+	apiserver_lib.ParseStruct(
+		string(api_lib.ValidateTag),
+		reflect.ValueOf(new(api_v0.MetricsStorageInstance)),
+		"",
+		apiserver_lib.Translate,
+		apiserver_v0.MetricsStorageInstanceTaggedFields,
+	)
+
+	// create a version object which contains the object name and versions
+	versionObj := apiserver_lib.VersionObject{
+		Object:  string(api_v0.ObjectTypeMetricsStorageInstance),
+		Version: "v0",
+	}
+
+	// add the object tagged fields to the global tagged fields map
+	apiserver_lib.ObjectTaggedFields[versionObj] = apiserver_v0.MetricsStorageInstanceTaggedFields[string(api_lib.ValidateTag)]
+
+	// add the object tagged fields to the rest API version
+	apiserver_lib.AddObjectVersion(versionObj)
+}
+
 // AddObservabilityDashboardDefinitionVersions adds field validation info and adds it
 // to the REST API versions.
 func AddObservabilityDashboardDefinitionVersions() {

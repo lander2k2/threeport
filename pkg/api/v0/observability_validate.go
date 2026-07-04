@@ -304,6 +304,66 @@ func (m *MetricsInstance) afterDelete(tx *gorm.DB) error {
 	return nil
 }
 
+// beforeCreate runs before the MetricsStorageDefinition is created.
+func (m *MetricsStorageDefinition) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the MetricsStorageDefinition is updated.
+func (m *MetricsStorageDefinition) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the MetricsStorageDefinition is deleted.
+func (m *MetricsStorageDefinition) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the MetricsStorageDefinition is created.
+func (m *MetricsStorageDefinition) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the MetricsStorageDefinition is updated.
+func (m *MetricsStorageDefinition) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the MetricsStorageDefinition is deleted.
+func (m *MetricsStorageDefinition) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeCreate runs before the MetricsStorageInstance is created.
+func (m *MetricsStorageInstance) beforeCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeUpdate runs before the MetricsStorageInstance is updated.
+func (m *MetricsStorageInstance) beforeUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// beforeDelete runs before the MetricsStorageInstance is deleted.
+func (m *MetricsStorageInstance) beforeDelete(tx *gorm.DB) error {
+	return nil
+}
+
+// afterCreate runs after the MetricsStorageInstance is created.
+func (m *MetricsStorageInstance) afterCreate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterUpdate runs after the MetricsStorageInstance is updated.
+func (m *MetricsStorageInstance) afterUpdate(tx *gorm.DB) error {
+	return nil
+}
+
+// afterDelete runs after the MetricsStorageInstance is deleted.
+func (m *MetricsStorageInstance) afterDelete(tx *gorm.DB) error {
+	return nil
+}
+
 // beforeCreate runs before the ObservabilityDashboardDefinition is created.
 func (o *ObservabilityDashboardDefinition) beforeCreate(tx *gorm.DB) error {
 	return nil

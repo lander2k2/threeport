@@ -128,6 +128,30 @@ func MetricsInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
 	e.DELETE(v0.PathMetricsInstances+"/:id", h.DeleteMetricsInstance)
 }
 
+// MetricsStorageDefinitionRoutes sets up all routes for the MetricsStorageDefinition handlers.
+func MetricsStorageDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathMetricsStorageDefinitionVersions, h.GetMetricsStorageDefinitionVersions)
+
+	e.POST(v0.PathMetricsStorageDefinitions, h.AddMetricsStorageDefinition)
+	e.GET(v0.PathMetricsStorageDefinitions, h.GetMetricsStorageDefinitions)
+	e.GET(v0.PathMetricsStorageDefinitions+"/:id", h.GetMetricsStorageDefinition)
+	e.PATCH(v0.PathMetricsStorageDefinitions+"/:id", h.UpdateMetricsStorageDefinition)
+	e.PUT(v0.PathMetricsStorageDefinitions+"/:id", h.ReplaceMetricsStorageDefinition)
+	e.DELETE(v0.PathMetricsStorageDefinitions+"/:id", h.DeleteMetricsStorageDefinition)
+}
+
+// MetricsStorageInstanceRoutes sets up all routes for the MetricsStorageInstance handlers.
+func MetricsStorageInstanceRoutes(e *echo.Echo, h *handlers.Handler) {
+	e.GET(v0.PathMetricsStorageInstanceVersions, h.GetMetricsStorageInstanceVersions)
+
+	e.POST(v0.PathMetricsStorageInstances, h.AddMetricsStorageInstance)
+	e.GET(v0.PathMetricsStorageInstances, h.GetMetricsStorageInstances)
+	e.GET(v0.PathMetricsStorageInstances+"/:id", h.GetMetricsStorageInstance)
+	e.PATCH(v0.PathMetricsStorageInstances+"/:id", h.UpdateMetricsStorageInstance)
+	e.PUT(v0.PathMetricsStorageInstances+"/:id", h.ReplaceMetricsStorageInstance)
+	e.DELETE(v0.PathMetricsStorageInstances+"/:id", h.DeleteMetricsStorageInstance)
+}
+
 // ObservabilityDashboardDefinitionRoutes sets up all routes for the ObservabilityDashboardDefinition handlers.
 func ObservabilityDashboardDefinitionRoutes(e *echo.Echo, h *handlers.Handler) {
 	e.GET(v0.PathObservabilityDashboardDefinitionVersions, h.GetObservabilityDashboardDefinitionVersions)

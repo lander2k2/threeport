@@ -44,6 +44,8 @@ func AddVersions() {
 	AddMachineWorkloadInstanceVersions()
 	AddMetricsDefinitionVersions()
 	AddMetricsInstanceVersions()
+	AddMetricsStorageDefinitionVersions()
+	AddMetricsStorageInstanceVersions()
 	AddModuleApiVersions()
 	AddModuleApiRouteVersions()
 	AddModuleControllerVersions()
